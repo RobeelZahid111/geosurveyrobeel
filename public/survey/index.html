@@ -568,8 +568,14 @@
         latlngs = raw;
       }
 
-      // Do NOT duplicate first point — export only unique vertices.
-      // The survey app / shapefile standard auto-closes the ring between last and first.
+      // Dedupe: remove any consecutive duplicate vertices and drop last vertex
+      // if it equals the first (some tools return a closed ring).
+      const eq = (a, b) => Math.abs(a.lat - b.lat) < 1e-9 && Math.abs(a.lng - b.lng) < 1e-9;
+      latlngs = latlngs.filter((ll, i, arr) => i === 0 || !eq(ll, arr[i - 1]));
+      if (isPolygon && latlngs.length > 1 && eq(latlngs[0], latlngs[latlngs.length - 1])) {
+        latlngs.pop();
+      }
+
 
       latlngs.forEach((ll, i) => {
         pointFeatures.push({
