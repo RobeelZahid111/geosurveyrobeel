@@ -77,14 +77,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "Geo Survey" },
+      { name: "description", content: "GeoJSON Navigator imports and displays GeoJSON files, supporting WGS84 coordinates and rich land-record schemas." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "Geo Survey" },
+      { property: "og:description", content: "GeoJSON Navigator imports and displays GeoJSON files, supporting WGS84 coordinates and rich land-record schemas." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Geo Survey" },
+      { name: "twitter:description", content: "GeoJSON Navigator imports and displays GeoJSON files, supporting WGS84 coordinates and rich land-record schemas." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/9d183a04-01db-434b-a8d4-2ee19386f8db/id-preview-ff8bfd7d--674e26d4-3b47-4a99-89ae-fb598ad8a68f.lovable.app-1783254749617.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/9d183a04-01db-434b-a8d4-2ee19386f8db/id-preview-ff8bfd7d--674e26d4-3b47-4a99-89ae-fb598ad8a68f.lovable.app-1783254749617.png" },
     ],
     links: [
       {
