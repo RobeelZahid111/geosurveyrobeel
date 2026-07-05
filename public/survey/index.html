@@ -568,13 +568,8 @@
         latlngs = raw;
       }
 
-      // Close the ring for polygons (first vertex duplicated at end)
-      if (isPolygon && latlngs.length > 0) {
-        const first = latlngs[0], last = latlngs[latlngs.length - 1];
-        if (first.lat !== last.lat || first.lng !== last.lng) {
-          latlngs = latlngs.concat([first]);
-        }
-      }
+      // Do NOT duplicate first point — export only unique vertices.
+      // The survey app / shapefile standard auto-closes the ring between last and first.
 
       latlngs.forEach((ll, i) => {
         pointFeatures.push({
