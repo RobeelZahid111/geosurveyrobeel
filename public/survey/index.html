@@ -576,22 +576,14 @@
         }
       }
 
-      const area = computeKanalMarlaSqft(layer);
-      const parcelLabel = (layer.feature_props && layer.feature_props.name) || undefined;
-      const props = askLandRecordProps(parcelLabel);
-      if (area) props.Area = area.areaSqFt;
-
       latlngs.forEach((ll, i) => {
         pointFeatures.push({
           type: 'Feature',
           id: fid,
           geometry: { type: 'Point', coordinates: [ll.lng, ll.lat] },
           properties: {
-            OBJECTID_1: fid,
-            OBJECTID: 356776,
-            ...props,
-            ORIG_FID: parcelIndex,
-            Point_No: i + 1
+            FID: fid,
+            ID: parcelIndex
           }
         });
         fid++;
