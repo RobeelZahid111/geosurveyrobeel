@@ -545,35 +545,7 @@
   // (mirrors ArcGIS "Feature Vertices To Points" -> Export GeoJSON, EPSG:4326).
   // One Point feature per polygon vertex, ring closed (first vertex duplicated at end),
   // with the full land-record property schema.
-  const LAND_RECORD_DEFAULTS = {
-    District: 'Chiniot', Dist_ID: 25,
-    Tehsil: 'Chiniot', Tehsil_ID: 83,
-    QH: 'Chiniot 2', QH_ID: 542,
-    PC: 'Talib', PC_ID: 4527,
-    Mouza: 'Chakbandi', Mouza_ID: 50095,
-    K: 13, Label: '100/13', Karam: 5.5,
-    Type: 'MU', SK: ' ',
-    Khasra_ID: 98376914, Join_Shp: '100/13',
-    M: '100', B: '0', MN: '0', A: 0,
-    Khewat_ID: 7669221, Remarks: ' ',
-    Area: 0
-  };
-
-  function askLandRecordProps(defaultLabel) {
-    // Minimal prompts for the fields user most likely wants to change per parcel.
-    const p = { ...LAND_RECORD_DEFAULTS };
-    const label = prompt('Label (e.g. 100/13):', defaultLabel || p.Label);
-    if (label && label.trim()) { p.Label = label.trim(); p.Join_Shp = label.trim(); const m = label.split('/')[0]; if (m) p.M = m.trim(); }
-    const mouza = prompt('Mouza:', p.Mouza);
-    if (mouza && mouza.trim()) p.Mouza = mouza.trim();
-    const tehsil = prompt('Tehsil:', p.Tehsil);
-    if (tehsil && tehsil.trim()) p.Tehsil = tehsil.trim();
-    const district = prompt('District:', p.District);
-    if (district && district.trim()) p.District = district.trim();
-    const karam = prompt('Karam:', p.Karam);
-    if (karam && !isNaN(parseFloat(karam))) p.Karam = parseFloat(karam);
-    return p;
-  }
+  // Export as Vertex Points — only FID and ID in properties
 
   document.getElementById('exportPointsBtn').onclick = function () {
     const layers = [];
