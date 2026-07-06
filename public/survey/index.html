@@ -14,6 +14,7 @@
 <link rel="icon" href="icon-192.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+<link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.2/dist/leaflet-geoman.css" />
 <style>
   :root{
     --ink:#1c2b22;
@@ -103,18 +104,33 @@
     font-family:ui-monospace,monospace;
   }
 
-  #propModal{
+  /* Floating action buttons on map (undo / rotate) */
+  .map-fab{
+    position:absolute; z-index:1000; background:#fff; border:1px solid var(--border);
+    border-radius:6px; padding:8px 12px; font-size:13px; font-weight:600; color:var(--line-dark);
+    cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,.15); display:flex; align-items:center; gap:6px;
+  }
+  .map-fab:hover{background:#f0eee2;}
+  #undoFab{ top:80px; left:12px; display:none; }
+  #rotateFab{ top:12px; right:12px; }
+  #rotateFab input{ width:60px; padding:2px 4px; border:1px solid var(--border); border-radius:3px; font-size:12px; }
+
+  #propModal, #dimModal{
     position:fixed;inset:0;background:rgba(20,25,20,.45);display:none;align-items:center;justify-content:center;z-index:2000;
   }
-  #propModal.show{display:flex;}
+  #propModal.show, #dimModal.show{display:flex;}
   .modal-box{
-    background:#fff;border-radius:8px;width:320px;padding:20px;box-shadow:0 12px 40px rgba(0,0,0,.25);
+    background:#fff;border-radius:8px;width:340px;max-width:92vw;padding:20px;box-shadow:0 12px 40px rgba(0,0,0,.25);
+    max-height:90vh; overflow-y:auto;
   }
   .modal-box h3{margin:0 0 14px;font-size:15px;color:var(--line-dark);}
   .modal-box label{display:block;font-size:12px;color:#6b6a5f;margin-bottom:4px;margin-top:10px;}
-  .modal-box input{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:5px;font-size:13px;}
+  .modal-box input, .modal-box select{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:5px;font-size:13px;}
+  .modal-box .row{display:flex;gap:8px;}
+  .modal-box .row > div{flex:1;}
   .modal-actions{display:flex;gap:8px;margin-top:16px;}
   .modal-actions .btn{margin-bottom:0;}
+  .hint{font-size:11px;color:#8a8873;margin-top:4px;}
 
   input[type=file]{display:none;}
 
@@ -152,6 +168,8 @@
     #sidebar header .tap-hint{ display:block; font-size:11px; color:var(--accent); font-weight:600; }
 
     .status-bar{ padding-bottom:calc(8px + env(safe-area-inset-bottom)); }
+
+    #undoFab{ top:auto; bottom:60px; left:12px; }
   }
 </style>
 </head>
@@ -161,7 +179,7 @@
     <div id="sidebarHandle"><div class="bar"></div></div>
     <header>
       <h1>Survey Geometry Builder</h1>
-      <p>Draw points, lines &amp; polygons freely — edit or delete any vertex — then export as GeoJSON to import into your survey app.</p>
+      <p>Draw points, lines &amp; polygons — edit vertices, cut polygons, add by dimensions, export as GeoJSON.</p>
       <p class="tap-hint">Tap to expand / collapse</p>
     </header>
 
@@ -178,14 +196,26 @@
     </div>
 
     <div class="section">
+      <h2>Tools</h2>
+      <button class="btn" id="addByDimBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12"/><path d="M3 12h18"/></svg>
+        Add polygon by dimensions
+      </button>
+      <button class="btn" id="cutBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.12 8.12L20 20M8.12 15.88L20 4"/></svg>
+        Cut polygon
+      </button>
+    </div>
+
+    <div class="section">
       <h2>Data</h2>
       <button class="btn accent" id="exportBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
-        Export GeoJSON (as drawn)
+        Export GeoJSON (combined)
       </button>
       <button class="btn accent" id="exportPointsBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M6 8v6M18 8v6M8 6h8M9 16l2-2M15 16l-2-2"/></svg>
-        Export Points (for survey app)
+        Export Points (separate files)
       </button>
       <button class="btn" id="importBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 0l-4 4m4-4l4 4M4 3h16"/></svg>
@@ -202,12 +232,21 @@
       <h2>Features (<span id="featureCount">0</span>)</h2>
     </div>
     <div id="featureList">
-      <div class="empty-hint">No features yet. Use the draw tools on the top-left of the map (point, line, polygon) to start marking parcels or boundary points.</div>
+      <div class="empty-hint">No features yet. Use the draw tools on the top-left of the map (point, line, polygon) to start marking parcels or boundary points. Your work is saved automatically.</div>
     </div>
   </div>
 
   <div id="mapWrap">
     <div id="map"></div>
+    <button class="map-fab" id="undoFab" title="Undo last point (Ctrl+Z)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-15-6.7L3 13"/></svg>
+      Undo
+    </button>
+    <div class="map-fab" id="rotateFab" title="Map rotation (degrees, 0 = North up)">
+      <span>🧭</span>
+      <input type="number" id="rotateInput" value="0" min="-180" max="180" step="5">
+      <button id="resetRotBtn" style="border:none;background:transparent;cursor:pointer;color:var(--accent);font-weight:700;">↻</button>
+    </div>
     <div class="status-bar">
       <span id="coordsStatus">Click map or use GPS to see coordinates</span>
       <span id="countStatus">0 features</span>
@@ -229,19 +268,72 @@
   </div>
 </div>
 
+<div id="dimModal">
+  <div class="modal-box">
+    <h3>Add polygon by dimensions</h3>
+    <label>Shape</label>
+    <select id="dimShape">
+      <option value="rect">Rectangle (width × height)</option>
+      <option value="traverse">Traverse (bearings + distances)</option>
+    </select>
+
+    <div id="dimRectFields">
+      <div class="row">
+        <div>
+          <label>Width (ft)</label>
+          <input type="number" id="dimW" value="60" min="1" step="0.1">
+        </div>
+        <div>
+          <label>Height (ft)</label>
+          <input type="number" id="dimH" value="90" min="1" step="0.1">
+        </div>
+      </div>
+      <label>Rotation (degrees, 0 = North)</label>
+      <input type="number" id="dimRot" value="0" step="1">
+      <p class="hint">Rectangle will be placed at the center of the current map view.</p>
+    </div>
+
+    <div id="dimTraverseFields" style="display:none;">
+      <label>Start latitude</label>
+      <input type="number" id="dimStartLat" step="0.000001" placeholder="e.g. 31.4504">
+      <label>Start longitude</label>
+      <input type="number" id="dimStartLng" step="0.000001" placeholder="e.g. 73.1350">
+      <label>Sides — one per line: <b>bearing_deg, distance_ft</b></label>
+      <textarea id="dimTraverse" rows="6" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:5px;font-family:ui-monospace,monospace;font-size:12px;"
+placeholder="90, 60
+180, 90
+270, 60
+0, 90"></textarea>
+      <p class="hint">Bearing measured clockwise from North. Polygon closes automatically.</p>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" id="dimCancel" style="margin:0;">Cancel</button>
+      <button class="btn primary" id="dimCreate" style="margin:0;">Create polygon</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.2/dist/leaflet-geoman.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js"></script>
 <script>
-  const map = L.map('map', { zoomControl: true }).setView([31.4504, 73.1350], 13); // Faisalabad default
+  const STORAGE_KEY = 'survey_geo_builder_v1';
 
-  // Reproject WGS84 lon/lat to the correct UTM zone (Pakistan spans zones 41N-43N; Faisalabad is 43N)
-  function utmZoneFor(lng) {
-    return Math.floor((lng + 180) / 6) + 1;
-  }
+  const map = L.map('map', {
+    zoomControl: true,
+    rotate: true,
+    touchRotate: true,
+    bearing: 0,
+    rotateControl: false
+  }).setView([31.4504, 73.1350], 13);
+
+  function utmZoneFor(lng) { return Math.floor((lng + 180) / 6) + 1; }
   function toUTM(lat, lng) {
     const zone = utmZoneFor(lng);
-    const epsg = 32600 + zone; // northern hemisphere
+    const epsg = 32600 + zone;
     const def = `+proj=utm +zone=${zone} +datum=WGS84 +units=m +no_defs`;
     const [x, y] = proj4('EPSG:4326', def, [lng, lat]);
     return { x, y, zone, epsg };
@@ -250,12 +342,10 @@
   const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors', maxZoom: 20
   });
-
   const satellite = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
     attribution: '&copy; Google', maxZoom: 21, maxNativeZoom: 20,
     subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
   });
-
   const satelliteOnly = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
     attribution: '&copy; Google', maxZoom: 21, maxNativeZoom: 20,
     subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
@@ -266,6 +356,11 @@
 
   const drawnItems = new L.FeatureGroup();
   map.addLayer(drawnItems);
+
+  // Geoman uses drawnItems as its layer group so cut results end up there too
+  if (map.pm) {
+    map.pm.setGlobalOptions({ layerGroup: drawnItems, snappable: true, snapDistance: 20 });
+  }
 
   const drawControl = new L.Control.Draw({
     edit: { featureGroup: drawnItems, remove: true },
@@ -300,7 +395,6 @@
     return 'feature';
   }
 
-  // Land-record convention: 1 Kanal = 20 Marla, 1 Marla = 272.25 sq ft
   function computeKanalMarlaSqft(layer) {
     if (!(layer instanceof L.Polygon)) return null;
     let latlngs = layer.getLatLngs();
@@ -309,7 +403,7 @@
     if (!latlngs.length || !(latlngs[0] instanceof L.LatLng)) return null;
 
     const MARLA_SQFT = 272.25;
-    const KANAL_SQFT = MARLA_SQFT * 20; // 5445 sq ft
+    const KANAL_SQFT = MARLA_SQFT * 20;
 
     const areaSqM = L.GeometryUtil.geodesicArea(latlngs);
     const areaSqFt = Math.abs(areaSqM) * 10.7639;
@@ -323,6 +417,43 @@
     return { kanal, marla, sqft, label: `${kanal}-${marla}-${sqft}`, areaSqFt: Math.round(areaSqFt), areaSqM: Math.round(areaSqM) };
   }
 
+  // ---------- Persistence (localStorage) ----------
+  function saveState() {
+    try {
+      const layers = [];
+      drawnItems.eachLayer(l => layers.push(l));
+      const features = layers.map(layer => {
+        const gj = layer.toGeoJSON();
+        gj.properties = { ...(layer.feature_props || {}) };
+        return gj;
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ type: 'FeatureCollection', features, idCounter }));
+    } catch (e) { console.warn('save failed', e); }
+  }
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data.idCounter) idCounter = data.idCounter;
+      if (!data.features || !data.features.length) return;
+      const gjLayer = L.geoJSON(data, {
+        pointToLayer: (f, latlng) => L.marker(latlng),
+        style: () => ({ color: '#2f6b3f' })
+      });
+      gjLayer.eachLayer(l => {
+        l.feature_props = (l.feature && l.feature.properties) ? { ...l.feature.properties } : { id: idCounter++ };
+        if (l instanceof L.Marker) {
+          l.options.draggable = true;
+          l.dragging.enable();
+          l.on('dragend', refreshList);
+        }
+        drawnItems.addLayer(l);
+      });
+    } catch (e) { console.warn('load failed', e); }
+  }
+
   function refreshList() {
     updateMeasurements();
     const listEl = document.getElementById('featureList');
@@ -332,7 +463,8 @@
     document.getElementById('countStatus').textContent = layers.length + ' feature' + (layers.length === 1 ? '' : 's');
 
     if (layers.length === 0) {
-      listEl.innerHTML = '<div class="empty-hint">No features yet. Use the draw tools on the top-left of the map (point, line, polygon) to start marking parcels or boundary points.</div>';
+      listEl.innerHTML = '<div class="empty-hint">No features yet. Use the draw tools on the top-left of the map (point, line, polygon) to start marking parcels or boundary points. Your work is saved automatically.</div>';
+      saveState();
       return;
     }
     listEl.innerHTML = '';
@@ -374,40 +506,32 @@
       };
       listEl.appendChild(item);
 
-      // Bind/update a permanent area tooltip on the polygon itself
       if (area) {
         const tooltipText = `${area.label}  (K-M-Sqft)`;
-        if (layer.getTooltip()) {
-          layer.setTooltipContent(tooltipText);
-        } else {
-          layer.bindTooltip(tooltipText, { permanent: true, direction: 'center', className: 'area-tooltip' });
-        }
+        if (layer.getTooltip()) layer.setTooltipContent(tooltipText);
+        else layer.bindTooltip(tooltipText, { permanent: true, direction: 'center', className: 'area-tooltip' });
       }
     });
+    saveState();
   }
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
-  // Ask the user what to name the exported file (falls back to a sensible default if cancelled/blank)
   function promptForFilename(defaultBase) {
     const suggestion = defaultBase + '_' + new Date().toISOString().slice(0, 10);
     const name = prompt('File ka naam likhein:', suggestion);
     return (name && name.trim()) ? name.trim() : suggestion;
   }
-
-  // Strip characters that aren't safe in a filename
   function sanitizeFilename(name) {
     return name.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '_').slice(0, 100) || 'export';
   }
 
-  // Draw a small permanent "XX ft" label at the midpoint of every edge of every
-  // polygon/polyline, mimicking the reference survey app's per-side measurements.
   function updateMeasurements() {
     measurementLayer.clearLayers();
     drawnItems.eachLayer(layer => {
-      if (!(layer instanceof L.Polyline)) return; // covers Polygon too (Polygon extends Polyline)
+      if (!(layer instanceof L.Polyline)) return;
       let latlngs = layer.getLatLngs();
       while (Array.isArray(latlngs[0]) && Array.isArray(latlngs[0][0])) latlngs = latlngs[0];
       if (Array.isArray(latlngs[0]) && !(latlngs[0] instanceof L.LatLng)) latlngs = latlngs[0];
@@ -440,7 +564,6 @@
 
   document.getElementById('propCancel').onclick = () => {
     document.getElementById('propModal').classList.remove('show');
-    // if it was a brand-new layer that user cancels naming, keep it anyway with default name
     pendingLayer = null;
   };
   document.getElementById('propSave').onclick = () => {
@@ -454,6 +577,7 @@
     refreshList();
   };
 
+  // ---------- Draw events ----------
   map.on(L.Draw.Event.CREATED, function (e) {
     const layer = e.layer;
     layer.feature_props = { id: idCounter++ };
@@ -473,14 +597,148 @@
   map.on('draw:editmove', refreshList);
   map.on('draw:editresize', refreshList);
 
+  // Geoman cut event — refresh after cut
+  map.on('pm:cut', (e) => {
+    // e.layer is the new cut result; e.originalLayer was removed
+    if (e.layer) {
+      e.layer.feature_props = { id: idCounter++, name: 'Cut result' };
+      drawnItems.addLayer(e.layer);
+    }
+    refreshList();
+  });
+
+  // ---------- Undo button ----------
+  const undoFab = document.getElementById('undoFab');
+  map.on('draw:drawstart', () => { undoFab.style.display = 'flex'; });
+  map.on('draw:drawstop', () => { undoFab.style.display = 'none'; });
+
+  function undoLastPoint() {
+    const tb = drawControl._toolbars && drawControl._toolbars.draw;
+    const active = tb && tb._activeMode && tb._activeMode.handler;
+    if (active && typeof active.deleteLastVertex === 'function') {
+      active.deleteLastVertex();
+    }
+  }
+  undoFab.onclick = undoLastPoint;
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      if (undoFab.style.display !== 'none') { e.preventDefault(); undoLastPoint(); }
+    }
+  });
+
   map.on('click', function (e) {
     document.getElementById('coordsStatus').textContent =
       `Lat: ${e.latlng.lat.toFixed(6)}, Lng: ${e.latlng.lng.toFixed(6)}`;
   });
 
-  // Locate
+  // ---------- Rotation ----------
+  const rotateInput = document.getElementById('rotateInput');
+  rotateInput.addEventListener('change', () => {
+    const deg = parseFloat(rotateInput.value) || 0;
+    if (typeof map.setBearing === 'function') map.setBearing(deg);
+  });
+  document.getElementById('resetRotBtn').onclick = () => {
+    rotateInput.value = 0;
+    if (typeof map.setBearing === 'function') map.setBearing(0);
+  };
+  map.on('rotate', () => {
+    if (typeof map.getBearing === 'function') {
+      rotateInput.value = Math.round(map.getBearing());
+    }
+  });
+
+  // ---------- Cut polygon (geoman) ----------
+  document.getElementById('cutBtn').onclick = function () {
+    if (!map.pm) { alert('Cut tool not loaded.'); return; }
+    if (map.pm.globalCutModeEnabled()) {
+      map.pm.disableGlobalCutMode();
+      this.classList.remove('primary');
+    } else {
+      map.pm.enableGlobalCutMode({ allowSelfIntersection: false });
+      this.classList.add('primary');
+      alert('Cut mode ON: polygon draw karein jo cut karna hai, ya button dobara press kar ke off karein.');
+    }
+  };
+
+  // ---------- Add polygon by dimensions ----------
+  const dimModal = document.getElementById('dimModal');
+  const dimShape = document.getElementById('dimShape');
+  document.getElementById('addByDimBtn').onclick = () => {
+    const c = map.getCenter();
+    document.getElementById('dimStartLat').value = c.lat.toFixed(6);
+    document.getElementById('dimStartLng').value = c.lng.toFixed(6);
+    dimModal.classList.add('show');
+  };
+  document.getElementById('dimCancel').onclick = () => dimModal.classList.remove('show');
+  dimShape.onchange = () => {
+    document.getElementById('dimRectFields').style.display = dimShape.value === 'rect' ? 'block' : 'none';
+    document.getElementById('dimTraverseFields').style.display = dimShape.value === 'traverse' ? 'block' : 'none';
+  };
+
+  // Move a lat/lng by (distance_m, bearing_deg) using spherical earth approximation
+  function offsetLatLng(lat, lng, distanceM, bearingDeg) {
+    const R = 6378137;
+    const br = bearingDeg * Math.PI / 180;
+    const lat1 = lat * Math.PI / 180;
+    const lng1 = lng * Math.PI / 180;
+    const dR = distanceM / R;
+    const lat2 = Math.asin(Math.sin(lat1) * Math.cos(dR) + Math.cos(lat1) * Math.sin(dR) * Math.cos(br));
+    const lng2 = lng1 + Math.atan2(Math.sin(br) * Math.sin(dR) * Math.cos(lat1), Math.cos(dR) - Math.sin(lat1) * Math.sin(lat2));
+    return [lat2 * 180 / Math.PI, ((lng2 * 180 / Math.PI) + 540) % 360 - 180];
+  }
+
+  document.getElementById('dimCreate').onclick = () => {
+    let latlngs = [];
+    if (dimShape.value === 'rect') {
+      const wFt = parseFloat(document.getElementById('dimW').value);
+      const hFt = parseFloat(document.getElementById('dimH').value);
+      const rot = parseFloat(document.getElementById('dimRot').value) || 0;
+      if (!(wFt > 0) || !(hFt > 0)) { alert('Enter valid width and height.'); return; }
+      const w = wFt / 3.28084, h = hFt / 3.28084;
+      const c = map.getCenter();
+      // 4 corners relative to center in meters (east=x, north=y), then rotate
+      const corners = [ [-w/2, -h/2], [w/2, -h/2], [w/2, h/2], [-w/2, h/2] ];
+      const cosR = Math.cos(rot * Math.PI / 180), sinR = Math.sin(rot * Math.PI / 180);
+      const mPerDegLat = 111320;
+      const mPerDegLng = 111320 * Math.cos(c.lat * Math.PI / 180);
+      latlngs = corners.map(([x, y]) => {
+        const xr = x * cosR - y * sinR;
+        const yr = x * sinR + y * cosR;
+        return [c.lat + yr / mPerDegLat, c.lng + xr / mPerDegLng];
+      });
+    } else {
+      const lat0 = parseFloat(document.getElementById('dimStartLat').value);
+      const lng0 = parseFloat(document.getElementById('dimStartLng').value);
+      if (!isFinite(lat0) || !isFinite(lng0)) { alert('Enter valid start coordinates.'); return; }
+      const lines = document.getElementById('dimTraverse').value.split('\n').map(s => s.trim()).filter(Boolean);
+      if (lines.length < 3) { alert('At least 3 sides required.'); return; }
+      let cur = [lat0, lng0];
+      latlngs.push(cur);
+      for (const ln of lines) {
+        const parts = ln.split(/[,\s]+/).map(parseFloat);
+        if (parts.length < 2 || !isFinite(parts[0]) || !isFinite(parts[1])) { alert('Invalid line: ' + ln); return; }
+        const bearing = parts[0], distFt = parts[1];
+        cur = offsetLatLng(cur[0], cur[1], distFt / 3.28084, bearing);
+        latlngs.push(cur);
+      }
+      // Drop last if user re-typed the closing side to first point
+      if (latlngs.length > 3) {
+        const a = latlngs[0], b = latlngs[latlngs.length - 1];
+        if (Math.abs(a[0] - b[0]) < 1e-7 && Math.abs(a[1] - b[1]) < 1e-7) latlngs.pop();
+      }
+    }
+    const poly = L.polygon(latlngs, { color: '#2f6b3f' });
+    poly.feature_props = { id: idCounter++ };
+    drawnItems.addLayer(poly);
+    dimModal.classList.remove('show');
+    map.fitBounds(poly.getBounds(), { maxZoom: 19 });
+    refreshList();
+    openPropsModal(poly);
+  };
+
+  // ---------- Location ----------
   document.getElementById('locateBtn').onclick = function () {
-    if (!navigator.geolocation) { alert('Geolocation not supported in this browser.'); return; }
+    if (!navigator.geolocation) { alert('Geolocation not supported.'); return; }
     document.getElementById('coordsStatus').textContent = 'Locating...';
     navigator.geolocation.getCurrentPosition(pos => {
       const { latitude, longitude } = pos.coords;
@@ -490,11 +748,9 @@
       document.getElementById('coordsStatus').textContent = `GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
     }, err => {
       alert('Could not get location: ' + err.message);
-      document.getElementById('coordsStatus').textContent = 'Location unavailable';
     }, { enableHighAccuracy: true });
   };
 
-  // Search (Nominatim)
   document.getElementById('searchBtn').onclick = async function () {
     const q = prompt('Search for a place, address, or Tehsil:');
     if (!q) return;
@@ -506,57 +762,47 @@
         const { lat, lon, display_name } = data[0];
         map.setView([parseFloat(lat), parseFloat(lon)], 16);
         document.getElementById('coordsStatus').textContent = display_name;
-      } else {
-        alert('No results found for: ' + q);
-        document.getElementById('coordsStatus').textContent = 'No results';
-      }
-    } catch (err) {
-      alert('Search failed. Check your internet connection.');
-    }
+      } else { alert('No results found for: ' + q); }
+    } catch (err) { alert('Search failed. Check internet connection.'); }
   };
 
-  // Export
+  // ---------- Export (combined) ----------
   document.getElementById('exportBtn').onclick = function () {
     const layers = [];
     drawnItems.eachLayer(l => layers.push(l));
-    if (layers.length === 0) { alert('No features to export yet.'); return; }
+    if (layers.length === 0) { alert('No features to export.'); return; }
     const features = layers.map(layer => {
-      const geoJsonLayer = layer.toGeoJSON();
+      const gj = layer.toGeoJSON();
       const area = computeKanalMarlaSqft(layer);
-      geoJsonLayer.properties = {
+      gj.properties = {
         ...(layer.feature_props || {}),
         ...(area ? { area_kanal_marla_sqft: area.label, area_kanal: area.kanal, area_marla: area.marla, area_sqft: area.sqft, area_total_sqft: area.areaSqFt } : {})
       };
-      return geoJsonLayer;
+      return gj;
     });
     const fc = { type: 'FeatureCollection', features };
     const blob = new Blob([JSON.stringify(fc, null, 2)], { type: 'application/geo+json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = sanitizeFilename(promptForFilename('survey_geometry')) + '.geojson';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, sanitizeFilename(promptForFilename('survey_geometry')) + '.geojson');
   };
 
-  // Export as Vertex Points (WGS84) — matches the format your survey app accepts
-  // (mirrors ArcGIS "Feature Vertices To Points" -> Export GeoJSON, EPSG:4326).
-  // One Point feature per polygon vertex, ring closed (first vertex duplicated at end),
-  // with the full land-record property schema.
-  // Export as Vertex Points — only FID and ID in properties
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
 
-  document.getElementById('exportPointsBtn').onclick = function () {
+  // ---------- Export Points — separate file per feature ----------
+  document.getElementById('exportPointsBtn').onclick = async function () {
     const layers = [];
     drawnItems.eachLayer(l => layers.push(l));
-    if (layers.length === 0) { alert('No features to export yet.'); return; }
+    if (layers.length === 0) { alert('No features to export.'); return; }
 
-    const pointFeatures = [];
-    let fid = 1;
-    let parcelIndex = 1;
+    const baseName = sanitizeFilename(promptForFilename('survey_points'));
 
-    layers.forEach(layer => {
+    for (let idx = 0; idx < layers.length; idx++) {
+      const layer = layers[idx];
       let latlngs = [];
       let isPolygon = false;
       if (layer instanceof L.Marker) {
@@ -568,47 +814,33 @@
         latlngs = raw;
       }
 
-      // Dedupe: remove any consecutive duplicate vertices and drop last vertex
-      // if it equals the first (some tools return a closed ring).
       const eq = (a, b) => Math.abs(a.lat - b.lat) < 1e-9 && Math.abs(a.lng - b.lng) < 1e-9;
       latlngs = latlngs.filter((ll, i, arr) => i === 0 || !eq(ll, arr[i - 1]));
-      if (isPolygon && latlngs.length > 1 && eq(latlngs[0], latlngs[latlngs.length - 1])) {
-        latlngs.pop();
-      }
+      if (isPolygon && latlngs.length > 1 && eq(latlngs[0], latlngs[latlngs.length - 1])) latlngs.pop();
 
-
-      latlngs.forEach((ll, i) => {
+      const pointFeatures = [];
+      let fid = 1;
+      latlngs.forEach(ll => {
         pointFeatures.push({
           type: 'Feature',
           id: fid,
           geometry: { type: 'Point', coordinates: [ll.lng, ll.lat] },
-          properties: {
-            FID: fid,
-            ID: parcelIndex
-          }
+          properties: { FID: fid, ID: idx + 1 }
         });
         fid++;
       });
 
-      parcelIndex++;
-    });
-
-    // No `crs` field — modern GeoJSON is implicitly WGS84 (EPSG:4326).
-    const fc = { type: 'FeatureCollection', features: pointFeatures };
-    const jsonString = JSON.stringify(fc, null, 2).replace(/"([^"]+)":/g, '"$1" :');
-    const blob = new Blob([jsonString], { type: 'application/geo+json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = sanitizeFilename(promptForFilename('survey_points')) + '.geojson';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+      const fc = { type: 'FeatureCollection', features: pointFeatures };
+      const jsonString = JSON.stringify(fc, null, 2).replace(/"([^"]+)":/g, '"$1" :');
+      const blob = new Blob([jsonString], { type: 'application/geo+json' });
+      const propName = (layer.feature_props && layer.feature_props.name) ? sanitizeFilename(layer.feature_props.name) : ('parcel_' + (idx + 1));
+      downloadBlob(blob, `${baseName}_${propName}.geojson`);
+      // small delay so browser doesn't block multiple downloads
+      await new Promise(r => setTimeout(r, 300));
+    }
   };
 
-
-  // Import
+  // ---------- Import ----------
   document.getElementById('importBtn').onclick = () => document.getElementById('importFile').click();
   document.getElementById('importFile').onchange = function (e) {
     const file = e.target.files[0];
@@ -633,38 +865,36 @@
         });
         if (layer.getBounds && layer.getBounds().isValid()) map.fitBounds(layer.getBounds(), { maxZoom: 18 });
         refreshList();
-      } catch (err) {
-        alert('Could not parse this file as valid GeoJSON.');
-      }
+      } catch (err) { alert('Could not parse this file as valid GeoJSON.'); }
     };
     reader.readAsText(file);
     e.target.value = '';
   };
 
-  // Clear all
+  // ---------- Clear ----------
   document.getElementById('clearBtn').onclick = function () {
     if (drawnItems.getLayers().length === 0) return;
     if (confirm('Delete all drawn features? This cannot be undone.')) {
       drawnItems.clearLayers();
+      localStorage.removeItem(STORAGE_KEY);
       refreshList();
     }
   };
 
+  // ---------- Init: restore saved features ----------
+  loadState();
   refreshList();
 
-  // Mobile bottom-sheet toggle for the sidebar
+  // Mobile bottom-sheet toggle
   function isMobileLayout() { return window.matchMedia('(max-width: 768px)').matches; }
-
   function toggleSidebar() {
     if (!isMobileLayout()) return;
     document.getElementById('sidebar').classList.toggle('open');
     setTimeout(() => map.invalidateSize(), 300);
   }
-
   document.getElementById('sidebarHandle').addEventListener('click', toggleSidebar);
   document.querySelector('#sidebar header').addEventListener('click', toggleSidebar);
 
-  // When a shape is created on mobile, collapse the sheet back down so the map is visible
   map.on(L.Draw.Event.CREATED, function () {
     if (isMobileLayout()) {
       document.getElementById('sidebar').classList.remove('open');
@@ -674,7 +904,6 @@
 
   window.addEventListener('resize', () => map.invalidateSize());
 
-  // Register service worker so the app works offline & is installable
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('service-worker.js').catch(err => {
