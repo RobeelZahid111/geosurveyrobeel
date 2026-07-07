@@ -65,6 +65,7 @@
     display:flex;align-items:center;justify-content:space-between;gap:8px;
   }
   .feature-item:hover{background:#f8f7f0;}
+  .feature-item.selected{background:#e7f0e5;border-left:4px solid var(--line);}
   .feature-item .meta{display:flex;flex-direction:column;gap:2px;min-width:0;}
   .feature-item .label{font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .feature-item .type{font-size:11px;color:#8a8873;}
@@ -112,6 +113,7 @@
   }
   .map-fab:hover{background:#f0eee2;}
   #undoFab{ top:80px; left:12px; display:none; }
+  #finishCutFab{ top:130px; left:12px; display:none; background:var(--accent); color:#fff; border-color:var(--accent);}
   #rotateFab{ top:12px; right:12px; }
   #rotateFab input{ width:60px; padding:2px 4px; border:1px solid var(--border); border-radius:3px; font-size:12px; }
 
@@ -189,6 +191,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
         Go to my GPS location
       </button>
+      <button class="btn" id="gotoLLBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z"/><circle cx="12" cy="9" r="2"/></svg>
+        Go to Lat / Lng
+      </button>
       <button class="btn" id="searchBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
         Search place / address
@@ -204,6 +210,10 @@
       <button class="btn" id="cutBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.12 8.12L20 20M8.12 15.88L20 4"/></svg>
         Cut polygon
+      </button>
+      <button class="btn" id="divideBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16"/><path d="M9 4v16M15 4v16"/></svg>
+        Divide polygon by area
       </button>
     </div>
 
@@ -242,13 +252,16 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-15-6.7L3 13"/></svg>
       Undo
     </button>
+    <button class="map-fab" id="finishCutFab" title="Finish cut (or double-click on map)">
+      ✓ Finish Cut
+    </button>
     <div class="map-fab" id="rotateFab" title="Map rotation (degrees, 0 = North up)">
       <span>🧭</span>
       <input type="number" id="rotateInput" value="0" min="-180" max="180" step="5">
       <button id="resetRotBtn" style="border:none;background:transparent;cursor:pointer;color:var(--accent);font-weight:700;">↻</button>
     </div>
     <div class="status-bar">
-      <span id="coordsStatus">Click map or use GPS to see coordinates</span>
+      <span id="coordsStatus">Move mouse or tap map to see live coordinates</span>
       <span id="countStatus">0 features</span>
     </div>
   </div>
@@ -474,6 +487,7 @@ placeholder="90, 60
       const area = computeKanalMarlaSqft(layer);
       const item = document.createElement('div');
       item.className = 'feature-item';
+      if (layer === selectedLayer) item.classList.add('selected');
       item.innerHTML = `
         <div class="meta">
           <span class="label">${props.name ? escapeHtml(props.name) : 'Unnamed ' + type}</span>
@@ -483,6 +497,9 @@ placeholder="90, 60
           <button class="icon-btn" data-action="zoom" title="Zoom to feature">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
           </button>
+          <button class="icon-btn" data-action="export" title="Export this feature only">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+          </button>
           <button class="icon-btn" data-action="edit" title="Edit name/notes">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
           </button>
@@ -490,10 +507,14 @@ placeholder="90, 60
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6"/></svg>
           </button>
         </div>`;
+      item.onclick = () => selectLayer(layer, { zoom: false, fromList: true });
       item.querySelector('[data-action="zoom"]').onclick = (e) => {
         e.stopPropagation();
-        if (layer.getBounds) map.fitBounds(layer.getBounds(), { maxZoom: 18 });
-        else map.setView(layer.getLatLng(), 18);
+        selectLayer(layer, { zoom: true, fromList: true });
+      };
+      item.querySelector('[data-action="export"]').onclick = (e) => {
+        e.stopPropagation();
+        exportSingleLayer(layer);
       };
       item.querySelector('[data-action="edit"]').onclick = (e) => {
         e.stopPropagation();
@@ -501,18 +522,51 @@ placeholder="90, 60
       };
       item.querySelector('[data-action="delete"]').onclick = (e) => {
         e.stopPropagation();
+        if (selectedLayer === layer) selectedLayer = null;
         drawnItems.removeLayer(layer);
         refreshList();
       };
       listEl.appendChild(item);
+      layer._listItem = item;
 
       if (area) {
         const tooltipText = `${area.label}  (K-M-Sqft)`;
         if (layer.getTooltip()) layer.setTooltipContent(tooltipText);
         else layer.bindTooltip(tooltipText, { permanent: true, direction: 'center', className: 'area-tooltip' });
       }
+      // Click layer on map -> select in list
+      if (!layer._selectBound) {
+        layer.on('click', (ev) => {
+          L.DomEvent.stopPropagation(ev);
+          selectLayer(layer, { zoom: false, fromList: false });
+        });
+        layer._selectBound = true;
+      }
     });
     saveState();
+  }
+
+  let selectedLayer = null;
+  function selectLayer(layer, { zoom = false, fromList = false } = {}) {
+    // reset previous style
+    if (selectedLayer && selectedLayer !== layer && selectedLayer.setStyle) {
+      selectedLayer.setStyle({ color: selectedLayer._origColor || '#2f6b3f', weight: 3 });
+    }
+    selectedLayer = layer;
+    if (layer.setStyle) {
+      if (!layer._origColor) layer._origColor = (layer.options && layer.options.color) || '#2f6b3f';
+      layer.setStyle({ color: '#c96a3b', weight: 5 });
+    }
+    // Update list highlight
+    document.querySelectorAll('.feature-item.selected').forEach(el => el.classList.remove('selected'));
+    if (layer._listItem) {
+      layer._listItem.classList.add('selected');
+      if (!fromList) layer._listItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+    if (zoom) {
+      if (layer.getBounds) map.fitBounds(layer.getBounds(), { maxZoom: 18 });
+      else if (layer.getLatLng) map.setView(layer.getLatLng(), 18);
+    }
   }
 
   function escapeHtml(s) {
@@ -604,6 +658,12 @@ placeholder="90, 60
       e.layer.feature_props = { id: idCounter++, name: 'Cut result' };
       drawnItems.addLayer(e.layer);
     }
+    // Auto-turn off cut mode after a successful cut
+    if (map.pm && map.pm.globalCutModeEnabled()) {
+      map.pm.disableGlobalCutMode();
+      document.getElementById('cutBtn').classList.remove('primary');
+      document.getElementById('finishCutFab').style.display = 'none';
+    }
     refreshList();
   });
 
@@ -626,6 +686,10 @@ placeholder="90, 60
     }
   });
 
+  map.on('mousemove', function (e) {
+    document.getElementById('coordsStatus').textContent =
+      `Lat: ${e.latlng.lat.toFixed(6)}, Lng: ${e.latlng.lng.toFixed(6)}`;
+  });
   map.on('click', function (e) {
     document.getElementById('coordsStatus').textContent =
       `Lat: ${e.latlng.lat.toFixed(6)}, Lng: ${e.latlng.lng.toFixed(6)}`;
@@ -647,17 +711,44 @@ placeholder="90, 60
     }
   });
 
+  // ---------- Go to Lat/Lng ----------
+  document.getElementById('gotoLLBtn').onclick = function () {
+    const input = prompt('Lat, Lng likhein (comma se alag):', '31.4504, 73.1350');
+    if (!input) return;
+    const parts = input.split(/[,\s]+/).map(parseFloat).filter(v => isFinite(v));
+    if (parts.length < 2) { alert('Format: lat, lng (e.g. 31.4504, 73.1350)'); return; }
+    const [lat, lng] = parts;
+    map.setView([lat, lng], 18);
+    L.circleMarker([lat, lng], { radius: 7, color: '#c96a3b', fillColor: '#c96a3b', fillOpacity: .8 })
+      .addTo(map).bindPopup(`Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}`).openPopup();
+    document.getElementById('coordsStatus').textContent = `Pin: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  };
+
   // ---------- Cut polygon (geoman) ----------
+  const finishCutFab = document.getElementById('finishCutFab');
   document.getElementById('cutBtn').onclick = function () {
     if (!map.pm) { alert('Cut tool not loaded.'); return; }
     if (map.pm.globalCutModeEnabled()) {
       map.pm.disableGlobalCutMode();
       this.classList.remove('primary');
+      finishCutFab.style.display = 'none';
     } else {
-      map.pm.enableGlobalCutMode({ allowSelfIntersection: false });
+      map.pm.enableGlobalCutMode({ allowSelfIntersection: false, finishOn: 'dblclick' });
       this.classList.add('primary');
-      alert('Cut mode ON: polygon draw karein jo cut karna hai, ya button dobara press kar ke off karein.');
+      finishCutFab.style.display = 'flex';
+      alert('Cut mode ON: parcel ke upar cut line/polygon draw karein. Khatam karne ke liye "Finish Cut" button dabayein ya map par double-click karein.');
     }
+  };
+  finishCutFab.onclick = function () {
+    try {
+      const cut = map.pm && map.pm.Draw && map.pm.Draw.Cut;
+      if (cut && typeof cut._finishShape === 'function') {
+        cut._finishShape();
+      } else if (map.pm.globalCutModeEnabled()) {
+        // fallback: simulate double-click at last mouse position
+        map.fire('dblclick');
+      }
+    } catch (err) { console.warn('finish cut failed', err); }
   };
 
   // ---------- Add polygon by dimensions ----------
@@ -735,6 +826,109 @@ placeholder="90, 60
     refreshList();
     openPropsModal(poly);
   };
+
+  // ---------- Export single feature ----------
+  function exportSingleLayer(layer) {
+    const gj = layer.toGeoJSON();
+    const area = computeKanalMarlaSqft(layer);
+    gj.properties = {
+      ...(layer.feature_props || {}),
+      ...(area ? { area_kanal_marla_sqft: area.label, area_kanal: area.kanal, area_marla: area.marla, area_sqft: area.sqft, area_total_sqft: area.areaSqFt } : {})
+    };
+    const fc = { type: 'FeatureCollection', features: [gj] };
+    const blob = new Blob([JSON.stringify(fc, null, 2)], { type: 'application/geo+json' });
+    const nm = (layer.feature_props && layer.feature_props.name) ? sanitizeFilename(layer.feature_props.name) : 'feature_' + (layer.feature_props && layer.feature_props.id || 1);
+    downloadBlob(blob, nm + '.geojson');
+  }
+
+  // ---------- Divide polygon by target area ----------
+  document.getElementById('divideBtn').onclick = function () {
+    if (!selectedLayer || !(selectedLayer instanceof L.Polygon)) {
+      alert('Pehle koi polygon (parcel) select karein (list mein tap karein ya map par click karein).');
+      return;
+    }
+    const area = computeKanalMarlaSqft(selectedLayer);
+    if (!area) { alert('Area calculate nahi ho saka.'); return; }
+
+    const totalSqft = area.areaSqFt;
+    const input = prompt(
+      `Is parcel ka total area: ${area.label} (${totalSqft} sqft).\n\nHar sub-parcel ka area kya hoga?\n\nExamples:\n  5000 sqft\n  1 kanal\n  5 marla\n  0-5-100  (kanal-marla-sqft)\n\nLikhein:`,
+      '5 marla'
+    );
+    if (!input) return;
+
+    const targetSqft = parseAreaInput(input);
+    if (!targetSqft || targetSqft <= 0) { alert('Invalid area format.'); return; }
+    if (targetSqft >= totalSqft) { alert('Target area parcel se chota hona chahiye.'); return; }
+
+    const nParts = Math.round(totalSqft / targetSqft);
+    if (nParts < 2) { alert('Sirf 1 part banega — target area kam karein.'); return; }
+    if (nParts > 200) { alert('200 se zyada divisions allowed nahi.'); return; }
+
+    const subs = divideQuadIntoStrips(selectedLayer, nParts);
+    if (!subs || !subs.length) { alert('Divide nahi ho saka. Sirf 4-corner (rectangular) parcels supported hain.'); return; }
+
+    // remove original
+    drawnItems.removeLayer(selectedLayer);
+    const parentName = (selectedLayer.feature_props && selectedLayer.feature_props.name) || ('Parcel-' + (selectedLayer.feature_props && selectedLayer.feature_props.id));
+    selectedLayer = null;
+    subs.forEach((coords, i) => {
+      const p = L.polygon(coords, { color: '#2f6b3f' });
+      p.feature_props = { id: idCounter++, name: `${parentName}-${i + 1}` };
+      drawnItems.addLayer(p);
+    });
+    refreshList();
+    alert(`${nParts} parts ban gaye (har ek ~${Math.round(totalSqft / nParts)} sqft).`);
+  };
+
+  function parseAreaInput(s) {
+    s = s.trim().toLowerCase();
+    const MARLA = 272.25, KANAL = MARLA * 20;
+    // K-M-S format
+    const kms = s.match(/^(\d+)-(\d+)-(\d+(?:\.\d+)?)$/);
+    if (kms) return (+kms[1]) * KANAL + (+kms[2]) * MARLA + (+kms[3]);
+    const num = parseFloat(s);
+    if (!isFinite(num)) return null;
+    if (s.includes('kanal')) return num * KANAL;
+    if (s.includes('marla')) return num * MARLA;
+    if (s.includes('sqm') || s.includes('sq m') || s.includes('m2')) return num * 10.7639;
+    return num; // default sqft
+  }
+
+  // Divide a 4-corner polygon into N strips along the longer pair of sides
+  function divideQuadIntoStrips(polygon, n) {
+    let latlngs = polygon.getLatLngs();
+    while (Array.isArray(latlngs[0]) && Array.isArray(latlngs[0][0])) latlngs = latlngs[0];
+    if (Array.isArray(latlngs[0]) && !(latlngs[0] instanceof L.LatLng)) latlngs = latlngs[0];
+    if (!latlngs || latlngs.length !== 4) return null;
+
+    const [A, B, C, D] = latlngs; // corners in order
+    // Determine which pair of opposite sides is longer: AB & DC, or BC & AD
+    const dAB = map.distance(A, B), dBC = map.distance(B, C);
+    const results = [];
+    for (let i = 0; i < n; i++) {
+      const t1 = i / n, t2 = (i + 1) / n;
+      let p1, p2, p3, p4;
+      if (dAB >= dBC) {
+        // split along AB (top) and DC (bottom)
+        p1 = interp(A, B, t1);
+        p2 = interp(A, B, t2);
+        p3 = interp(D, C, t2);
+        p4 = interp(D, C, t1);
+      } else {
+        // split along BC (right) and AD (left)
+        p1 = interp(A, D, t1);
+        p2 = interp(B, C, t1);
+        p3 = interp(B, C, t2);
+        p4 = interp(A, D, t2);
+      }
+      results.push([p1, p2, p3, p4]);
+    }
+    return results;
+  }
+  function interp(a, b, t) {
+    return L.latLng(a.lat + (b.lat - a.lat) * t, a.lng + (b.lng - a.lng) * t);
+  }
 
   // ---------- Location ----------
   document.getElementById('locateBtn').onclick = function () {
