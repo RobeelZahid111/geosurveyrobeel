@@ -658,6 +658,12 @@ placeholder="90, 60
       e.layer.feature_props = { id: idCounter++, name: 'Cut result' };
       drawnItems.addLayer(e.layer);
     }
+    // Auto-turn off cut mode after a successful cut
+    if (map.pm && map.pm.globalCutModeEnabled()) {
+      map.pm.disableGlobalCutMode();
+      document.getElementById('cutBtn').classList.remove('primary');
+      document.getElementById('finishCutFab').style.display = 'none';
+    }
     refreshList();
   });
 
