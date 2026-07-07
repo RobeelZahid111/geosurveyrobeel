@@ -827,6 +827,109 @@ placeholder="90, 60
     openPropsModal(poly);
   };
 
+  // ---------- Export single feature ----------
+  function exportSingleLayer(layer) {
+    const gj = layer.toGeoJSON();
+    const area = computeKanalMarlaSqft(layer);
+    gj.properties = {
+      ...(layer.feature_props || {}),
+      ...(area ? { area_kanal_marla_sqft: area.label, area_kanal: area.kanal, area_marla: area.marla, area_sqft: area.sqft, area_total_sqft: area.areaSqFt } : {})
+    };
+    const fc = { type: 'FeatureCollection', features: [gj] };
+    const blob = new Blob([JSON.stringify(fc, null, 2)], { type: 'application/geo+json' });
+    const nm = (layer.feature_props && layer.feature_props.name) ? sanitizeFilename(layer.feature_props.name) : 'feature_' + (layer.feature_props && layer.feature_props.id || 1);
+    downloadBlob(blob, nm + '.geojson');
+  }
+
+  // ---------- Divide polygon by target area ----------
+  document.getElementById('divideBtn').onclick = function () {
+    if (!selectedLayer || !(selectedLayer instanceof L.Polygon)) {
+      alert('Pehle koi polygon (parcel) select karein (list mein tap karein ya map par click karein).');
+      return;
+    }
+    const area = computeKanalMarlaSqft(selectedLayer);
+    if (!area) { alert('Area calculate nahi ho saka.'); return; }
+
+    const totalSqft = area.areaSqFt;
+    const input = prompt(
+      `Is parcel ka total area: ${area.label} (${totalSqft} sqft).\n\nHar sub-parcel ka area kya hoga?\n\nExamples:\n  5000 sqft\n  1 kanal\n  5 marla\n  0-5-100  (kanal-marla-sqft)\n\nLikhein:`,
+      '5 marla'
+    );
+    if (!input) return;
+
+    const targetSqft = parseAreaInput(input);
+    if (!targetSqft || targetSqft <= 0) { alert('Invalid area format.'); return; }
+    if (targetSqft >= totalSqft) { alert('Target area parcel se chota hona chahiye.'); return; }
+
+    const nParts = Math.round(totalSqft / targetSqft);
+    if (nParts < 2) { alert('Sirf 1 part banega — target area kam karein.'); return; }
+    if (nParts > 200) { alert('200 se zyada divisions allowed nahi.'); return; }
+
+    const subs = divideQuadIntoStrips(selectedLayer, nParts);
+    if (!subs || !subs.length) { alert('Divide nahi ho saka. Sirf 4-corner (rectangular) parcels supported hain.'); return; }
+
+    // remove original
+    drawnItems.removeLayer(selectedLayer);
+    const parentName = (selectedLayer.feature_props && selectedLayer.feature_props.name) || ('Parcel-' + (selectedLayer.feature_props && selectedLayer.feature_props.id));
+    selectedLayer = null;
+    subs.forEach((coords, i) => {
+      const p = L.polygon(coords, { color: '#2f6b3f' });
+      p.feature_props = { id: idCounter++, name: `${parentName}-${i + 1}` };
+      drawnItems.addLayer(p);
+    });
+    refreshList();
+    alert(`${nParts} parts ban gaye (har ek ~${Math.round(totalSqft / nParts)} sqft).`);
+  };
+
+  function parseAreaInput(s) {
+    s = s.trim().toLowerCase();
+    const MARLA = 272.25, KANAL = MARLA * 20;
+    // K-M-S format
+    const kms = s.match(/^(\d+)-(\d+)-(\d+(?:\.\d+)?)$/);
+    if (kms) return (+kms[1]) * KANAL + (+kms[2]) * MARLA + (+kms[3]);
+    const num = parseFloat(s);
+    if (!isFinite(num)) return null;
+    if (s.includes('kanal')) return num * KANAL;
+    if (s.includes('marla')) return num * MARLA;
+    if (s.includes('sqm') || s.includes('sq m') || s.includes('m2')) return num * 10.7639;
+    return num; // default sqft
+  }
+
+  // Divide a 4-corner polygon into N strips along the longer pair of sides
+  function divideQuadIntoStrips(polygon, n) {
+    let latlngs = polygon.getLatLngs();
+    while (Array.isArray(latlngs[0]) && Array.isArray(latlngs[0][0])) latlngs = latlngs[0];
+    if (Array.isArray(latlngs[0]) && !(latlngs[0] instanceof L.LatLng)) latlngs = latlngs[0];
+    if (!latlngs || latlngs.length !== 4) return null;
+
+    const [A, B, C, D] = latlngs; // corners in order
+    // Determine which pair of opposite sides is longer: AB & DC, or BC & AD
+    const dAB = map.distance(A, B), dBC = map.distance(B, C);
+    const results = [];
+    for (let i = 0; i < n; i++) {
+      const t1 = i / n, t2 = (i + 1) / n;
+      let p1, p2, p3, p4;
+      if (dAB >= dBC) {
+        // split along AB (top) and DC (bottom)
+        p1 = interp(A, B, t1);
+        p2 = interp(A, B, t2);
+        p3 = interp(D, C, t2);
+        p4 = interp(D, C, t1);
+      } else {
+        // split along BC (right) and AD (left)
+        p1 = interp(A, D, t1);
+        p2 = interp(B, C, t1);
+        p3 = interp(B, C, t2);
+        p4 = interp(A, D, t2);
+      }
+      results.push([p1, p2, p3, p4]);
+    }
+    return results;
+  }
+  function interp(a, b, t) {
+    return L.latLng(a.lat + (b.lat - a.lat) * t, a.lng + (b.lng - a.lng) * t);
+  }
+
   // ---------- Location ----------
   document.getElementById('locateBtn').onclick = function () {
     if (!navigator.geolocation) { alert('Geolocation not supported.'); return; }
