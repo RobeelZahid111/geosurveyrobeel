@@ -680,6 +680,10 @@ placeholder="90, 60
     }
   });
 
+  map.on('mousemove', function (e) {
+    document.getElementById('coordsStatus').textContent =
+      `Lat: ${e.latlng.lat.toFixed(6)}, Lng: ${e.latlng.lng.toFixed(6)}`;
+  });
   map.on('click', function (e) {
     document.getElementById('coordsStatus').textContent =
       `Lat: ${e.latlng.lat.toFixed(6)}, Lng: ${e.latlng.lng.toFixed(6)}`;
@@ -701,17 +705,44 @@ placeholder="90, 60
     }
   });
 
+  // ---------- Go to Lat/Lng ----------
+  document.getElementById('gotoLLBtn').onclick = function () {
+    const input = prompt('Lat, Lng likhein (comma se alag):', '31.4504, 73.1350');
+    if (!input) return;
+    const parts = input.split(/[,\s]+/).map(parseFloat).filter(v => isFinite(v));
+    if (parts.length < 2) { alert('Format: lat, lng (e.g. 31.4504, 73.1350)'); return; }
+    const [lat, lng] = parts;
+    map.setView([lat, lng], 18);
+    L.circleMarker([lat, lng], { radius: 7, color: '#c96a3b', fillColor: '#c96a3b', fillOpacity: .8 })
+      .addTo(map).bindPopup(`Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}`).openPopup();
+    document.getElementById('coordsStatus').textContent = `Pin: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  };
+
   // ---------- Cut polygon (geoman) ----------
+  const finishCutFab = document.getElementById('finishCutFab');
   document.getElementById('cutBtn').onclick = function () {
     if (!map.pm) { alert('Cut tool not loaded.'); return; }
     if (map.pm.globalCutModeEnabled()) {
       map.pm.disableGlobalCutMode();
       this.classList.remove('primary');
+      finishCutFab.style.display = 'none';
     } else {
-      map.pm.enableGlobalCutMode({ allowSelfIntersection: false });
+      map.pm.enableGlobalCutMode({ allowSelfIntersection: false, finishOn: 'dblclick' });
       this.classList.add('primary');
-      alert('Cut mode ON: polygon draw karein jo cut karna hai, ya button dobara press kar ke off karein.');
+      finishCutFab.style.display = 'flex';
+      alert('Cut mode ON: parcel ke upar cut line/polygon draw karein. Khatam karne ke liye "Finish Cut" button dabayein ya map par double-click karein.');
     }
+  };
+  finishCutFab.onclick = function () {
+    try {
+      const cut = map.pm && map.pm.Draw && map.pm.Draw.Cut;
+      if (cut && typeof cut._finishShape === 'function') {
+        cut._finishShape();
+      } else if (map.pm.globalCutModeEnabled()) {
+        // fallback: simulate double-click at last mouse position
+        map.fire('dblclick');
+      }
+    } catch (err) { console.warn('finish cut failed', err); }
   };
 
   // ---------- Add polygon by dimensions ----------
