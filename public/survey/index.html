@@ -487,6 +487,7 @@ placeholder="90, 60
       const area = computeKanalMarlaSqft(layer);
       const item = document.createElement('div');
       item.className = 'feature-item';
+      if (layer === selectedLayer) item.classList.add('selected');
       item.innerHTML = `
         <div class="meta">
           <span class="label">${props.name ? escapeHtml(props.name) : 'Unnamed ' + type}</span>
@@ -496,6 +497,9 @@ placeholder="90, 60
           <button class="icon-btn" data-action="zoom" title="Zoom to feature">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
           </button>
+          <button class="icon-btn" data-action="export" title="Export this feature only">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+          </button>
           <button class="icon-btn" data-action="edit" title="Edit name/notes">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
           </button>
@@ -503,10 +507,14 @@ placeholder="90, 60
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6"/></svg>
           </button>
         </div>`;
+      item.onclick = () => selectLayer(layer, { zoom: false, fromList: true });
       item.querySelector('[data-action="zoom"]').onclick = (e) => {
         e.stopPropagation();
-        if (layer.getBounds) map.fitBounds(layer.getBounds(), { maxZoom: 18 });
-        else map.setView(layer.getLatLng(), 18);
+        selectLayer(layer, { zoom: true, fromList: true });
+      };
+      item.querySelector('[data-action="export"]').onclick = (e) => {
+        e.stopPropagation();
+        exportSingleLayer(layer);
       };
       item.querySelector('[data-action="edit"]').onclick = (e) => {
         e.stopPropagation();
@@ -514,18 +522,51 @@ placeholder="90, 60
       };
       item.querySelector('[data-action="delete"]').onclick = (e) => {
         e.stopPropagation();
+        if (selectedLayer === layer) selectedLayer = null;
         drawnItems.removeLayer(layer);
         refreshList();
       };
       listEl.appendChild(item);
+      layer._listItem = item;
 
       if (area) {
         const tooltipText = `${area.label}  (K-M-Sqft)`;
         if (layer.getTooltip()) layer.setTooltipContent(tooltipText);
         else layer.bindTooltip(tooltipText, { permanent: true, direction: 'center', className: 'area-tooltip' });
       }
+      // Click layer on map -> select in list
+      if (!layer._selectBound) {
+        layer.on('click', (ev) => {
+          L.DomEvent.stopPropagation(ev);
+          selectLayer(layer, { zoom: false, fromList: false });
+        });
+        layer._selectBound = true;
+      }
     });
     saveState();
+  }
+
+  let selectedLayer = null;
+  function selectLayer(layer, { zoom = false, fromList = false } = {}) {
+    // reset previous style
+    if (selectedLayer && selectedLayer !== layer && selectedLayer.setStyle) {
+      selectedLayer.setStyle({ color: selectedLayer._origColor || '#2f6b3f', weight: 3 });
+    }
+    selectedLayer = layer;
+    if (layer.setStyle) {
+      if (!layer._origColor) layer._origColor = (layer.options && layer.options.color) || '#2f6b3f';
+      layer.setStyle({ color: '#c96a3b', weight: 5 });
+    }
+    // Update list highlight
+    document.querySelectorAll('.feature-item.selected').forEach(el => el.classList.remove('selected'));
+    if (layer._listItem) {
+      layer._listItem.classList.add('selected');
+      if (!fromList) layer._listItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+    if (zoom) {
+      if (layer.getBounds) map.fitBounds(layer.getBounds(), { maxZoom: 18 });
+      else if (layer.getLatLng) map.setView(layer.getLatLng(), 18);
+    }
   }
 
   function escapeHtml(s) {
