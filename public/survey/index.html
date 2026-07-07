@@ -252,13 +252,16 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-15-6.7L3 13"/></svg>
       Undo
     </button>
+    <button class="map-fab" id="finishCutFab" title="Finish cut (or double-click on map)">
+      ✓ Finish Cut
+    </button>
     <div class="map-fab" id="rotateFab" title="Map rotation (degrees, 0 = North up)">
       <span>🧭</span>
       <input type="number" id="rotateInput" value="0" min="-180" max="180" step="5">
       <button id="resetRotBtn" style="border:none;background:transparent;cursor:pointer;color:var(--accent);font-weight:700;">↻</button>
     </div>
     <div class="status-bar">
-      <span id="coordsStatus">Click map or use GPS to see coordinates</span>
+      <span id="coordsStatus">Move mouse or tap map to see live coordinates</span>
       <span id="countStatus">0 features</span>
     </div>
   </div>
