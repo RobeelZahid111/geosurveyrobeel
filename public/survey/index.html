@@ -725,32 +725,85 @@ placeholder="90, 60
     document.getElementById('coordsStatus').textContent = `Pin: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
   };
 
-  // ---------- Cut polygon (geoman) ----------
+  // ---------- Split / Cut polygon (draw a line across the polygon) ----------
   const finishCutFab = document.getElementById('finishCutFab');
+  let splitHandler = null;
+
+  function stopSplit() {
+    if (splitHandler) { try { splitHandler.disable(); } catch(e){} splitHandler = null; }
+    document.getElementById('cutBtn').classList.remove('primary');
+    finishCutFab.style.display = 'none';
+  }
+
   document.getElementById('cutBtn').onclick = function () {
-    if (!map.pm) { alert('Cut tool not loaded.'); return; }
-    if (map.pm.globalCutModeEnabled()) {
-      map.pm.disableGlobalCutMode();
-      this.classList.remove('primary');
-      finishCutFab.style.display = 'none';
-    } else {
-      map.pm.enableGlobalCutMode({ allowSelfIntersection: false, finishOn: 'dblclick' });
-      this.classList.add('primary');
-      finishCutFab.style.display = 'flex';
-      alert('Cut mode ON: parcel ke upar cut line/polygon draw karein. Khatam karne ke liye "Finish Cut" button dabayein ya map par double-click karein.');
+    if (splitHandler) { stopSplit(); return; }
+    if (typeof polygonsplitter !== 'function') { alert('Split tool not loaded. Check internet.'); return; }
+    splitHandler = new L.Draw.Polyline(map, {
+      shapeOptions: { color: '#c96a3b', weight: 3, dashArray: '6,6' },
+      allowIntersection: true,
+      metric: true
+    });
+    splitHandler.enable();
+    this.classList.add('primary');
+    finishCutFab.style.display = 'flex';
+    alert('Split mode ON: parcel ke aar-paar ek line draw karein (kam se kam 2 points, dono ends polygon se bahar). Line khatam karne ke liye last point par double-click ya "Finish Cut" button dabayein.');
+  };
+
+  finishCutFab.onclick = function () {
+    if (splitHandler && typeof splitHandler._finishShape === 'function') {
+      try { splitHandler._finishShape(); } catch(e){ console.warn(e); }
     }
   };
-  finishCutFab.onclick = function () {
-    try {
-      const cut = map.pm && map.pm.Draw && map.pm.Draw.Cut;
-      if (cut && typeof cut._finishShape === 'function') {
-        cut._finishShape();
-      } else if (map.pm.globalCutModeEnabled()) {
-        // fallback: simulate double-click at last mouse position
-        map.fire('dblclick');
+
+  // Intercept polyline draw events only while split mode is active
+  map.on(L.Draw.Event.CREATED, function handleSplit(e) {
+    if (!splitHandler || e.layerType !== 'polyline') return;
+    // Prevent the normal CREATED handler from adding this as a feature
+    e._isSplitLine = true;
+    const lineLL = e.layer.getLatLngs();
+    if (lineLL.length < 2) { stopSplit(); return; }
+    const lineGJ = {
+      type: 'Feature', properties: {},
+      geometry: { type: 'LineString', coordinates: lineLL.map(p => [p.lng, p.lat]) }
+    };
+    // Find polygons the line touches
+    const targets = [];
+    drawnItems.eachLayer(l => {
+      if (l instanceof L.Polygon && !(l instanceof L.Rectangle === false && false)) {}
+      if (l instanceof L.Polygon) {
+        const b = l.getBounds();
+        // rough bbox check first
+        const lb = L.latLngBounds(lineLL);
+        if (b.intersects(lb)) targets.push(l);
       }
-    } catch (err) { console.warn('finish cut failed', err); }
-  };
+    });
+    let didSplit = false;
+    targets.forEach(l => {
+      try {
+        const gj = l.toGeoJSON();
+        const result = polygonsplitter(gj, lineGJ);
+        const feats = result && result.features ? result.features : [];
+        if (feats.length >= 2) {
+          const baseName = (l.feature_props && l.feature_props.name) || 'Parcel';
+          drawnItems.removeLayer(l);
+          feats.forEach((f, i) => {
+            const nl = L.geoJSON(f, { style: { color: '#2c5f8a', weight: 2, fillOpacity: .25 } });
+            nl.eachLayer(sub => {
+              sub.feature_props = { id: idCounter++, name: `${baseName} (part ${i+1})` };
+              if (sub.editing && sub.editing.enable) sub.editing.enable();
+              drawnItems.addLayer(sub);
+            });
+          });
+          didSplit = true;
+        }
+      } catch (err) { console.warn('split failed on layer', err); }
+    });
+    if (!didSplit) alert('Split failed: line polygon ke aar-paar (dono ends bahar) honi chahiye.');
+    stopSplit();
+    refreshList();
+  });
+
+
 
   // ---------- Add polygon by dimensions ----------
   const dimModal = document.getElementById('dimModal');
