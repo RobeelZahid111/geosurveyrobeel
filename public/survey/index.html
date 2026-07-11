@@ -401,6 +401,21 @@ placeholder="90, 60
 
   let idCounter = 1;
   let pendingLayer = null;
+  const coordsStatusEl = document.getElementById('coordsStatus');
+  let cursorStatusText = 'Move mouse or tap map to see live coordinates';
+  let gpsStatusText = '';
+
+  function renderCoordinateStatus() {
+    coordsStatusEl.textContent = gpsStatusText ? `${cursorStatusText}  |  ${gpsStatusText}` : cursorStatusText;
+  }
+  function setCursorStatus(text) {
+    cursorStatusText = text;
+    renderCoordinateStatus();
+  }
+  function setGpsStatus(text) {
+    gpsStatusText = text || '';
+    renderCoordinateStatus();
+  }
 
   function layerTypeLabel(layer) {
     if (layer instanceof L.Marker) return 'point';
@@ -689,12 +704,10 @@ placeholder="90, 60
   });
 
   map.on('mousemove', function (e) {
-    document.getElementById('coordsStatus').textContent =
-      `Lat: ${e.latlng.lat.toFixed(6)}, Lng: ${e.latlng.lng.toFixed(6)}`;
+    setCursorStatus(`Lat: ${e.latlng.lat.toFixed(6)}, Lng: ${e.latlng.lng.toFixed(6)}`);
   });
   map.on('click', function (e) {
-    document.getElementById('coordsStatus').textContent =
-      `Lat: ${e.latlng.lat.toFixed(6)}, Lng: ${e.latlng.lng.toFixed(6)}`;
+    setCursorStatus(`Lat: ${e.latlng.lat.toFixed(6)}, Lng: ${e.latlng.lng.toFixed(6)}`);
   });
 
   // ---------- Rotation ----------
@@ -723,7 +736,7 @@ placeholder="90, 60
     map.setView([lat, lng], 18);
     L.circleMarker([lat, lng], { radius: 7, color: '#c96a3b', fillColor: '#c96a3b', fillOpacity: .8 })
       .addTo(map).bindPopup(`Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}`).openPopup();
-    document.getElementById('coordsStatus').textContent = `Pin: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    setCursorStatus(`Pin: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
   };
 
   // ---------- Split / Cut polygon (draw a line across the polygon) ----------
@@ -986,53 +999,120 @@ placeholder="90, 60
   }
 
   // ---------- Location (high-accuracy live tracking) ----------
-  let gpsWatchId = null, gpsMarker = null, gpsCircle = null, gpsFirstFix = true;
+  const GPS_TARGET_ACCURACY_M = 15;
+  const GPS_USABLE_ACCURACY_M = 80;
+  const GPS_STALE_READING_MS = 15000;
+  const GPS_FALLBACK_MS = 25000;
+  let gpsWatchId = null, gpsMarker = null, gpsCircle = null, gpsBestFix = null, gpsLockTimer = null, gpsHasCentered = false;
+
+  function clearGpsLayers() {
+    if (gpsMarker) { map.removeLayer(gpsMarker); gpsMarker = null; }
+    if (gpsCircle) { map.removeLayer(gpsCircle); gpsCircle = null; }
+  }
+
+  function renderGpsFix(fix, label) {
+    const ll = [fix.lat, fix.lng];
+    if (!gpsMarker) {
+      gpsMarker = L.circleMarker(ll, { radius: 7, color: '#fff', weight: 2, fillColor: '#2c5f8a', fillOpacity: 1 }).addTo(map);
+      gpsMarker.bindPopup('Your best GPS location');
+    } else gpsMarker.setLatLng(ll);
+    gpsMarker.setPopupContent(`${label}<br>Lat: ${fix.lat.toFixed(7)}<br>Lng: ${fix.lng.toFixed(7)}<br>Accuracy: ±${Math.round(fix.accuracy)}m`);
+    if (!gpsCircle) {
+      gpsCircle = L.circle(ll, { radius: fix.accuracy, color: '#2c5f8a', weight: 1, fillOpacity: .08 }).addTo(map);
+    } else { gpsCircle.setLatLng(ll); gpsCircle.setRadius(fix.accuracy); }
+  }
+
+  function centerOnGpsFix(fix, forceFit) {
+    const ll = [fix.lat, fix.lng];
+    if (forceFit || fix.accuracy > GPS_TARGET_ACCURACY_M) {
+      const bounds = gpsCircle ? gpsCircle.getBounds() : L.latLng(ll).toBounds(Math.max(fix.accuracy, 25));
+      map.fitBounds(bounds, { maxZoom: 19, padding: [36, 36] });
+    } else {
+      map.setView(ll, 20);
+    }
+    gpsHasCentered = true;
+  }
+
+  function stopGpsTracking(button) {
+    if (gpsWatchId !== null) navigator.geolocation.clearWatch(gpsWatchId);
+    gpsWatchId = null;
+    if (gpsLockTimer) { clearTimeout(gpsLockTimer); gpsLockTimer = null; }
+    gpsBestFix = null;
+    gpsHasCentered = false;
+    clearGpsLayers();
+    button.classList.remove('primary');
+    setGpsStatus('');
+    setCursorStatus('GPS off');
+  }
+
   document.getElementById('locateBtn').onclick = function () {
     if (!navigator.geolocation) { alert('Geolocation not supported.'); return; }
     if (gpsWatchId !== null) {
-      navigator.geolocation.clearWatch(gpsWatchId);
-      gpsWatchId = null;
-      if (gpsMarker) { map.removeLayer(gpsMarker); gpsMarker = null; }
-      if (gpsCircle) { map.removeLayer(gpsCircle); gpsCircle = null; }
-      this.classList.remove('primary');
-      document.getElementById('coordsStatus').textContent = 'GPS off';
+      stopGpsTracking(this);
       return;
     }
     this.classList.add('primary');
-    gpsFirstFix = true;
-    document.getElementById('coordsStatus').textContent = 'Locating (high accuracy)...';
+    gpsBestFix = null;
+    gpsHasCentered = false;
+    setGpsStatus(`GPS: locking… target ±${GPS_TARGET_ACCURACY_M}m`);
+    setCursorStatus('Keep phone still / open sky for best GPS');
+    gpsLockTimer = setTimeout(() => {
+      if (gpsBestFix && !gpsHasCentered) {
+        renderGpsFix(gpsBestFix, 'Best available GPS');
+        centerOnGpsFix(gpsBestFix, true);
+        setGpsStatus(`GPS weak: best ±${Math.round(gpsBestFix.accuracy)}m`);
+      }
+    }, GPS_FALLBACK_MS);
     gpsWatchId = navigator.geolocation.watchPosition(pos => {
       const { latitude, longitude, accuracy } = pos.coords;
-      const ll = [latitude, longitude];
-      if (!gpsMarker) {
-        gpsMarker = L.circleMarker(ll, { radius: 7, color: '#fff', weight: 2, fillColor: '#2c5f8a', fillOpacity: 1 }).addTo(map);
-        gpsMarker.bindPopup('Your live GPS location');
-      } else gpsMarker.setLatLng(ll);
-      if (!gpsCircle) {
-        gpsCircle = L.circle(ll, { radius: accuracy, color: '#2c5f8a', weight: 1, fillOpacity: .08 }).addTo(map);
-      } else { gpsCircle.setLatLng(ll); gpsCircle.setRadius(accuracy); }
-      if (gpsFirstFix) { map.setView(ll, 19); gpsFirstFix = false; }
-      document.getElementById('coordsStatus').textContent =
-        `GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)} (±${Math.round(accuracy)}m)`;
+      const age = Date.now() - (pos.timestamp || Date.now());
+      if (!isFinite(latitude) || !isFinite(longitude) || !isFinite(accuracy)) {
+        setGpsStatus('GPS: waiting for valid reading…');
+        return;
+      }
+      if (age > GPS_STALE_READING_MS) {
+        setGpsStatus(`GPS: ignored old reading ±${Math.round(accuracy)}m`);
+        return;
+      }
+
+      const fix = { lat: latitude, lng: longitude, accuracy, timestamp: pos.timestamp || Date.now() };
+      const isBetter = !gpsBestFix || fix.accuracy < gpsBestFix.accuracy;
+      if (isBetter) gpsBestFix = fix;
+
+      const best = gpsBestFix;
+      const locked = best.accuracy <= GPS_TARGET_ACCURACY_M;
+      renderGpsFix(best, locked ? 'GPS locked' : 'Best GPS so far');
+      setCursorStatus(`GPS: ${best.lat.toFixed(7)}, ${best.lng.toFixed(7)}`);
+
+      if (locked) {
+        if (gpsLockTimer) { clearTimeout(gpsLockTimer); gpsLockTimer = null; }
+        setGpsStatus(`GPS locked ±${Math.round(best.accuracy)}m`);
+        if (!gpsHasCentered || isBetter) centerOnGpsFix(best, false);
+      } else if (best.accuracy <= GPS_USABLE_ACCURACY_M) {
+        setGpsStatus(`GPS improving ±${Math.round(best.accuracy)}m`);
+        if (!gpsHasCentered && isBetter) centerOnGpsFix(best, true);
+      } else {
+        setGpsStatus(`GPS weak ±${Math.round(best.accuracy)}m — wait/open sky`);
+      }
     }, err => {
       alert('Could not get location: ' + err.message + '\n\nTips: allow location permission, enable phone GPS, aur khuli jagah par test karein.');
-      this.classList.remove('primary');
+      stopGpsTracking(this);
       gpsWatchId = null;
-    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
   };
 
 
   document.getElementById('searchBtn').onclick = async function () {
     const q = prompt('Search for a place, address, or Tehsil:');
     if (!q) return;
-    document.getElementById('coordsStatus').textContent = 'Searching...';
+    setCursorStatus('Searching...');
     try {
       const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q));
       const data = await res.json();
       if (data && data.length) {
         const { lat, lon, display_name } = data[0];
         map.setView([parseFloat(lat), parseFloat(lon)], 16);
-        document.getElementById('coordsStatus').textContent = display_name;
+        setCursorStatus(display_name);
       } else { alert('No results found for: ' + q); }
     } catch (err) { alert('Search failed. Check internet connection.'); }
   };
