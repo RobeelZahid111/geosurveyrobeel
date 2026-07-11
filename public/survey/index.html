@@ -634,6 +634,7 @@ placeholder="90, 60
 
   // ---------- Draw events ----------
   map.on(L.Draw.Event.CREATED, function (e) {
+    if (splitHandler) return; // split-line handler takes over
     const layer = e.layer;
     layer.feature_props = { id: idCounter++ };
     if (layer instanceof L.Marker) {
