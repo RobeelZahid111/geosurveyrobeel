@@ -332,7 +332,6 @@ placeholder="90, 60
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.2/dist/leaflet-geoman.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js"></script>
-<script src="https://unpkg.com/polygon-splitter@0.0.11/dist/polygonsplitter.min.js"></script>
 <script>
   const STORAGE_KEY = 'survey_geo_builder_v1';
 
@@ -401,21 +400,6 @@ placeholder="90, 60
 
   let idCounter = 1;
   let pendingLayer = null;
-  const coordsStatusEl = document.getElementById('coordsStatus');
-  let cursorStatusText = 'Move mouse or tap map to see live coordinates';
-  let gpsStatusText = '';
-
-  function renderCoordinateStatus() {
-    coordsStatusEl.textContent = gpsStatusText ? `${cursorStatusText}  |  ${gpsStatusText}` : cursorStatusText;
-  }
-  function setCursorStatus(text) {
-    cursorStatusText = text;
-    renderCoordinateStatus();
-  }
-  function setGpsStatus(text) {
-    gpsStatusText = text || '';
-    renderCoordinateStatus();
-  }
 
   function layerTypeLabel(layer) {
     if (layer instanceof L.Marker) return 'point';
@@ -649,7 +633,6 @@ placeholder="90, 60
 
   // ---------- Draw events ----------
   map.on(L.Draw.Event.CREATED, function (e) {
-    if (splitHandler) return; // split-line handler takes over
     const layer = e.layer;
     layer.feature_props = { id: idCounter++ };
     if (layer instanceof L.Marker) {
@@ -704,10 +687,12 @@ placeholder="90, 60
   });
 
   map.on('mousemove', function (e) {
-    setCursorStatus(`Lat: ${e.latlng.lat.toFixed(6)}, Lng: ${e.latlng.lng.toFixed(6)}`);
+    document.getElementById('coordsStatus').textContent =
+      `Lat: ${e.latlng.lat.toFixed(6)}, Lng: ${e.latlng.lng.toFixed(6)}`;
   });
   map.on('click', function (e) {
-    setCursorStatus(`Lat: ${e.latlng.lat.toFixed(6)}, Lng: ${e.latlng.lng.toFixed(6)}`);
+    document.getElementById('coordsStatus').textContent =
+      `Lat: ${e.latlng.lat.toFixed(6)}, Lng: ${e.latlng.lng.toFixed(6)}`;
   });
 
   // ---------- Rotation ----------
@@ -736,88 +721,35 @@ placeholder="90, 60
     map.setView([lat, lng], 18);
     L.circleMarker([lat, lng], { radius: 7, color: '#c96a3b', fillColor: '#c96a3b', fillOpacity: .8 })
       .addTo(map).bindPopup(`Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}`).openPopup();
-    setCursorStatus(`Pin: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+    document.getElementById('coordsStatus').textContent = `Pin: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
   };
 
-  // ---------- Split / Cut polygon (draw a line across the polygon) ----------
+  // ---------- Cut polygon (geoman) ----------
   const finishCutFab = document.getElementById('finishCutFab');
-  let splitHandler = null;
-
-  function stopSplit() {
-    if (splitHandler) { try { splitHandler.disable(); } catch(e){} splitHandler = null; }
-    document.getElementById('cutBtn').classList.remove('primary');
-    finishCutFab.style.display = 'none';
-  }
-
   document.getElementById('cutBtn').onclick = function () {
-    if (splitHandler) { stopSplit(); return; }
-    if (typeof polygonsplitter !== 'function') { alert('Split tool not loaded. Check internet.'); return; }
-    splitHandler = new L.Draw.Polyline(map, {
-      shapeOptions: { color: '#c96a3b', weight: 3, dashArray: '6,6' },
-      allowIntersection: true,
-      metric: true
-    });
-    splitHandler.enable();
-    this.classList.add('primary');
-    finishCutFab.style.display = 'flex';
-    alert('Split mode ON: parcel ke aar-paar ek line draw karein (kam se kam 2 points, dono ends polygon se bahar). Line khatam karne ke liye last point par double-click ya "Finish Cut" button dabayein.');
-  };
-
-  finishCutFab.onclick = function () {
-    if (splitHandler && typeof splitHandler._finishShape === 'function') {
-      try { splitHandler._finishShape(); } catch(e){ console.warn(e); }
+    if (!map.pm) { alert('Cut tool not loaded.'); return; }
+    if (map.pm.globalCutModeEnabled()) {
+      map.pm.disableGlobalCutMode();
+      this.classList.remove('primary');
+      finishCutFab.style.display = 'none';
+    } else {
+      map.pm.enableGlobalCutMode({ allowSelfIntersection: false, finishOn: 'dblclick' });
+      this.classList.add('primary');
+      finishCutFab.style.display = 'flex';
+      alert('Cut mode ON: parcel ke upar cut line/polygon draw karein. Khatam karne ke liye "Finish Cut" button dabayein ya map par double-click karein.');
     }
   };
-
-  // Intercept polyline draw events only while split mode is active
-  map.on(L.Draw.Event.CREATED, function handleSplit(e) {
-    if (!splitHandler || e.layerType !== 'polyline') return;
-    // Prevent the normal CREATED handler from adding this as a feature
-    e._isSplitLine = true;
-    const lineLL = e.layer.getLatLngs();
-    if (lineLL.length < 2) { stopSplit(); return; }
-    const lineGJ = {
-      type: 'Feature', properties: {},
-      geometry: { type: 'LineString', coordinates: lineLL.map(p => [p.lng, p.lat]) }
-    };
-    // Find polygons the line touches
-    const targets = [];
-    drawnItems.eachLayer(l => {
-      if (l instanceof L.Polygon && !(l instanceof L.Rectangle === false && false)) {}
-      if (l instanceof L.Polygon) {
-        const b = l.getBounds();
-        // rough bbox check first
-        const lb = L.latLngBounds(lineLL);
-        if (b.intersects(lb)) targets.push(l);
+  finishCutFab.onclick = function () {
+    try {
+      const cut = map.pm && map.pm.Draw && map.pm.Draw.Cut;
+      if (cut && typeof cut._finishShape === 'function') {
+        cut._finishShape();
+      } else if (map.pm.globalCutModeEnabled()) {
+        // fallback: simulate double-click at last mouse position
+        map.fire('dblclick');
       }
-    });
-    let didSplit = false;
-    targets.forEach(l => {
-      try {
-        const gj = l.toGeoJSON();
-        const result = polygonsplitter(gj, lineGJ);
-        const feats = result && result.features ? result.features : [];
-        if (feats.length >= 2) {
-          const baseName = (l.feature_props && l.feature_props.name) || 'Parcel';
-          drawnItems.removeLayer(l);
-          feats.forEach((f, i) => {
-            const nl = L.geoJSON(f, { style: { color: '#2c5f8a', weight: 2, fillOpacity: .25 } });
-            nl.eachLayer(sub => {
-              sub.feature_props = { id: idCounter++, name: `${baseName} (part ${i+1})` };
-              if (sub.editing && sub.editing.enable) sub.editing.enable();
-              drawnItems.addLayer(sub);
-            });
-          });
-          didSplit = true;
-        }
-      } catch (err) { console.warn('split failed on layer', err); }
-    });
-    if (!didSplit) alert('Split failed: line polygon ke aar-paar (dono ends bahar) honi chahiye.');
-    stopSplit();
-    refreshList();
-  });
-
-
+    } catch (err) { console.warn('finish cut failed', err); }
+  };
 
   // ---------- Add polygon by dimensions ----------
   const dimModal = document.getElementById('dimModal');
@@ -998,121 +930,32 @@ placeholder="90, 60
     return L.latLng(a.lat + (b.lat - a.lat) * t, a.lng + (b.lng - a.lng) * t);
   }
 
-  // ---------- Location (high-accuracy live tracking) ----------
-  const GPS_TARGET_ACCURACY_M = 15;
-  const GPS_USABLE_ACCURACY_M = 80;
-  const GPS_STALE_READING_MS = 15000;
-  const GPS_FALLBACK_MS = 25000;
-  let gpsWatchId = null, gpsMarker = null, gpsCircle = null, gpsBestFix = null, gpsLockTimer = null, gpsHasCentered = false;
-
-  function clearGpsLayers() {
-    if (gpsMarker) { map.removeLayer(gpsMarker); gpsMarker = null; }
-    if (gpsCircle) { map.removeLayer(gpsCircle); gpsCircle = null; }
-  }
-
-  function renderGpsFix(fix, label) {
-    const ll = [fix.lat, fix.lng];
-    if (!gpsMarker) {
-      gpsMarker = L.circleMarker(ll, { radius: 7, color: '#fff', weight: 2, fillColor: '#2c5f8a', fillOpacity: 1 }).addTo(map);
-      gpsMarker.bindPopup('Your best GPS location');
-    } else gpsMarker.setLatLng(ll);
-    gpsMarker.setPopupContent(`${label}<br>Lat: ${fix.lat.toFixed(7)}<br>Lng: ${fix.lng.toFixed(7)}<br>Accuracy: ±${Math.round(fix.accuracy)}m`);
-    if (!gpsCircle) {
-      gpsCircle = L.circle(ll, { radius: fix.accuracy, color: '#2c5f8a', weight: 1, fillOpacity: .08 }).addTo(map);
-    } else { gpsCircle.setLatLng(ll); gpsCircle.setRadius(fix.accuracy); }
-  }
-
-  function centerOnGpsFix(fix, forceFit) {
-    const ll = [fix.lat, fix.lng];
-    if (forceFit || fix.accuracy > GPS_TARGET_ACCURACY_M) {
-      const bounds = gpsCircle ? gpsCircle.getBounds() : L.latLng(ll).toBounds(Math.max(fix.accuracy, 25));
-      map.fitBounds(bounds, { maxZoom: 19, padding: [36, 36] });
-    } else {
-      map.setView(ll, 20);
-    }
-    gpsHasCentered = true;
-  }
-
-  function stopGpsTracking(button) {
-    if (gpsWatchId !== null) navigator.geolocation.clearWatch(gpsWatchId);
-    gpsWatchId = null;
-    if (gpsLockTimer) { clearTimeout(gpsLockTimer); gpsLockTimer = null; }
-    gpsBestFix = null;
-    gpsHasCentered = false;
-    clearGpsLayers();
-    button.classList.remove('primary');
-    setGpsStatus('');
-    setCursorStatus('GPS off');
-  }
-
+  // ---------- Location ----------
   document.getElementById('locateBtn').onclick = function () {
     if (!navigator.geolocation) { alert('Geolocation not supported.'); return; }
-    if (gpsWatchId !== null) {
-      stopGpsTracking(this);
-      return;
-    }
-    this.classList.add('primary');
-    gpsBestFix = null;
-    gpsHasCentered = false;
-    setGpsStatus(`GPS: locking… target ±${GPS_TARGET_ACCURACY_M}m`);
-    setCursorStatus('Keep phone still / open sky for best GPS');
-    gpsLockTimer = setTimeout(() => {
-      if (gpsBestFix && !gpsHasCentered) {
-        renderGpsFix(gpsBestFix, 'Best available GPS');
-        centerOnGpsFix(gpsBestFix, true);
-        setGpsStatus(`GPS weak: best ±${Math.round(gpsBestFix.accuracy)}m`);
-      }
-    }, GPS_FALLBACK_MS);
-    gpsWatchId = navigator.geolocation.watchPosition(pos => {
-      const { latitude, longitude, accuracy } = pos.coords;
-      const age = Date.now() - (pos.timestamp || Date.now());
-      if (!isFinite(latitude) || !isFinite(longitude) || !isFinite(accuracy)) {
-        setGpsStatus('GPS: waiting for valid reading…');
-        return;
-      }
-      if (age > GPS_STALE_READING_MS) {
-        setGpsStatus(`GPS: ignored old reading ±${Math.round(accuracy)}m`);
-        return;
-      }
-
-      const fix = { lat: latitude, lng: longitude, accuracy, timestamp: pos.timestamp || Date.now() };
-      const isBetter = !gpsBestFix || fix.accuracy < gpsBestFix.accuracy;
-      if (isBetter) gpsBestFix = fix;
-
-      const best = gpsBestFix;
-      const locked = best.accuracy <= GPS_TARGET_ACCURACY_M;
-      renderGpsFix(best, locked ? 'GPS locked' : 'Best GPS so far');
-      setCursorStatus(`GPS: ${best.lat.toFixed(7)}, ${best.lng.toFixed(7)}`);
-
-      if (locked) {
-        if (gpsLockTimer) { clearTimeout(gpsLockTimer); gpsLockTimer = null; }
-        setGpsStatus(`GPS locked ±${Math.round(best.accuracy)}m`);
-        if (!gpsHasCentered || isBetter) centerOnGpsFix(best, false);
-      } else if (best.accuracy <= GPS_USABLE_ACCURACY_M) {
-        setGpsStatus(`GPS improving ±${Math.round(best.accuracy)}m`);
-        if (!gpsHasCentered && isBetter) centerOnGpsFix(best, true);
-      } else {
-        setGpsStatus(`GPS weak ±${Math.round(best.accuracy)}m — wait/open sky`);
-      }
+    document.getElementById('coordsStatus').textContent = 'Locating...';
+    navigator.geolocation.getCurrentPosition(pos => {
+      const { latitude, longitude } = pos.coords;
+      map.setView([latitude, longitude], 18);
+      L.circleMarker([latitude, longitude], { radius: 6, color: '#2c5f8a', fillColor: '#2c5f8a', fillOpacity: .8 })
+        .addTo(map).bindPopup('Your GPS location').openPopup();
+      document.getElementById('coordsStatus').textContent = `GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
     }, err => {
-      alert('Could not get location: ' + err.message + '\n\nTips: allow location permission, enable phone GPS, aur khuli jagah par test karein.');
-      stopGpsTracking(this);
-      gpsWatchId = null;
-    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
+      alert('Could not get location: ' + err.message);
+    }, { enableHighAccuracy: true });
   };
-
 
   document.getElementById('searchBtn').onclick = async function () {
     const q = prompt('Search for a place, address, or Tehsil:');
     if (!q) return;
-    setCursorStatus('Searching...');
+    document.getElementById('coordsStatus').textContent = 'Searching...';
     try {
       const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q));
       const data = await res.json();
       if (data && data.length) {
         const { lat, lon, display_name } = data[0];
         map.setView([parseFloat(lat), parseFloat(lon)], 16);
-        setCursorStatus(display_name);
+        document.getElementById('coordsStatus').textContent = display_name;
       } else { alert('No results found for: ' + q); }
     } catch (err) { alert('Search failed. Check internet connection.'); }
   };
