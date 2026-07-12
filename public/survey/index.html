@@ -114,6 +114,10 @@
   .map-fab:hover{background:#f0eee2;}
   #undoFab{ top:80px; left:12px; display:none; }
   #finishCutFab{ top:130px; left:12px; display:none; background:var(--accent); color:#fff; border-color:var(--accent);}
+  #cancelCutFab{ top:180px; left:12px; display:none; background:#fff; color:#a8532a; border-color:#f0d9c8;}
+  #undoCutFab{ top:230px; left:12px; display:none; background:#fff; color:var(--line-dark); border-color:var(--border);}
+  .cut-target-highlight{ stroke-dasharray: 6 4; }
+  .cut-line-preview{ }
   #rotateFab{ top:12px; right:12px; }
   #rotateFab input{ width:60px; padding:2px 4px; border:1px solid var(--border); border-radius:3px; font-size:12px; }
 
@@ -252,8 +256,14 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-15-6.7L3 13"/></svg>
       Undo
     </button>
-    <button class="map-fab" id="finishCutFab" title="Finish cut (or double-click on map)">
+    <button class="map-fab" id="finishCutFab" title="Finish cut line">
       ✓ Finish Cut
+    </button>
+    <button class="map-fab" id="cancelCutFab" title="Cancel cut">
+      ✕ Cancel Cut
+    </button>
+    <button class="map-fab" id="undoCutFab" title="Undo last cut">
+      ↺ Undo Cut
     </button>
     <div class="map-fab" id="rotateFab" title="Map rotation (degrees, 0 = North up)">
       <span>🧭</span>
@@ -332,6 +342,7 @@ placeholder="90, 60
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.2/dist/leaflet-geoman.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js"></script>
+<script src="https://unpkg.com/@turf/turf@7.1.0/turf.min.js"></script>
 <script>
   const STORAGE_KEY = 'survey_geo_builder_v1';
 
@@ -724,32 +735,253 @@ placeholder="90, 60
     document.getElementById('coordsStatus').textContent = `Pin: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
   };
 
-  // ---------- Cut polygon (geoman) ----------
+  // ---------- Cut polygon (ArcGIS-style line cut with undo) ----------
   const finishCutFab = document.getElementById('finishCutFab');
-  document.getElementById('cutBtn').onclick = function () {
-    if (!map.pm) { alert('Cut tool not loaded.'); return; }
-    if (map.pm.globalCutModeEnabled()) {
-      map.pm.disableGlobalCutMode();
-      this.classList.remove('primary');
-      finishCutFab.style.display = 'none';
-    } else {
-      map.pm.enableGlobalCutMode({ allowSelfIntersection: false, finishOn: 'dblclick' });
-      this.classList.add('primary');
-      finishCutFab.style.display = 'flex';
-      alert('Cut mode ON: parcel ke upar cut line/polygon draw karein. Khatam karne ke liye "Finish Cut" button dabayein ya map par double-click karein.');
+  const cancelCutFab = document.getElementById('cancelCutFab');
+  const undoCutFab = document.getElementById('undoCutFab');
+  const cutBtn = document.getElementById('cutBtn');
+
+  const cutState = {
+    active: false,          // false | 'pick' | 'draw'
+    target: null,           // L.Polygon being cut
+    originalStyle: null,
+    lineLatLngs: [],
+    previewLine: null,      // L.Polyline
+    previewMarkers: [],     // L.CircleMarker per vertex
+    undoStack: []           // [{ removed: geojsonFeature, addedIds: [id,...] }]
+  };
+
+  function setCutButtonsUI() {
+    finishCutFab.style.display = (cutState.active === 'draw') ? 'flex' : 'none';
+    cancelCutFab.style.display = cutState.active ? 'flex' : 'none';
+    undoCutFab.style.display = cutState.undoStack.length ? 'flex' : 'none';
+    cutBtn.classList.toggle('primary', !!cutState.active);
+  }
+
+  function clearCutPreview() {
+    if (cutState.previewLine) { map.removeLayer(cutState.previewLine); cutState.previewLine = null; }
+    cutState.previewMarkers.forEach(m => map.removeLayer(m));
+    cutState.previewMarkers = [];
+    cutState.lineLatLngs = [];
+  }
+
+  function exitCutMode() {
+    if (cutState.target && cutState.originalStyle && cutState.target.setStyle) {
+      cutState.target.setStyle(cutState.originalStyle);
     }
-  };
-  finishCutFab.onclick = function () {
-    try {
-      const cut = map.pm && map.pm.Draw && map.pm.Draw.Cut;
-      if (cut && typeof cut._finishShape === 'function') {
-        cut._finishShape();
-      } else if (map.pm.globalCutModeEnabled()) {
-        // fallback: simulate double-click at last mouse position
-        map.fire('dblclick');
+    cutState.target = null;
+    cutState.originalStyle = null;
+    cutState.active = false;
+    clearCutPreview();
+    map.off('click', onCutMapClick);
+    map.getContainer().style.cursor = '';
+    setCutButtonsUI();
+  }
+
+  function highlightTarget(layer) {
+    cutState.target = layer;
+    if (layer.setStyle) {
+      cutState.originalStyle = { color: layer.options.color, weight: layer.options.weight, dashArray: layer.options.dashArray };
+      layer.setStyle({ color: '#c96a3b', weight: 3, dashArray: '6 4' });
+    }
+  }
+
+  function onPolygonPickForCut(e) {
+    L.DomEvent.stopPropagation(e);
+    if (cutState.active !== 'pick') return;
+    highlightTarget(e.target);
+    detachCutPickHandlers();
+    cutState.active = 'draw';
+    map.getContainer().style.cursor = 'crosshair';
+    setCutButtonsUI();
+    document.getElementById('coordsStatus').textContent =
+      'Cut line draw karein: polygon ke bahar sy click karein, cross kar ke bahar khatam karein. "Finish Cut" dabayein.';
+  }
+
+  function onCutMapClick(e) {
+    if (cutState.active !== 'draw') return;
+    cutState.lineLatLngs.push(e.latlng);
+    if (!cutState.previewLine) {
+      cutState.previewLine = L.polyline(cutState.lineLatLngs, { color: '#c96a3b', weight: 2, dashArray: '4 4', interactive: false }).addTo(map);
+    } else {
+      cutState.previewLine.setLatLngs(cutState.lineLatLngs);
+    }
+    const m = L.circleMarker(e.latlng, { radius: 4, color: '#c96a3b', fillColor: '#fff', fillOpacity: 1, weight: 2, interactive: false }).addTo(map);
+    cutState.previewMarkers.push(m);
+  }
+
+  function attachCutPickHandlers() {
+    drawnItems.eachLayer(l => {
+      if (l instanceof L.Polygon) {
+        l.on('click', onPolygonPickForCut);
       }
-    } catch (err) { console.warn('finish cut failed', err); }
+    });
+  }
+  function detachCutPickHandlers() {
+    drawnItems.eachLayer(l => {
+      if (l instanceof L.Polygon) l.off('click', onPolygonPickForCut);
+    });
+  }
+
+  cutBtn.onclick = function () {
+    if (cutState.active) { detachCutPickHandlers(); exitCutMode(); return; }
+    cutState.active = 'pick';
+    attachCutPickHandlers();
+    setCutButtonsUI();
+    alert('Cut mode ON: pehle woh polygon click karein jise cut karna hai, phir cut line draw karein (polygon ke bahar sy start & end).');
   };
+
+  cancelCutFab.onclick = function () { detachCutPickHandlers(); exitCutMode(); };
+
+  // Split a polygon (array of L.LatLng outer ring, open) by a polyline (array of L.LatLng)
+  function splitPolygonByLine(polyLatLngs, lineLatLngs) {
+    if (!window.turf) { alert('Turf.js load nahi hua.'); return null; }
+    const ring = polyLatLngs.map(p => [p.lng, p.lat]);
+    if (ring.length < 3) return null;
+    // ensure closed
+    const first = ring[0], last = ring[ring.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) ring.push([first[0], first[1]]);
+    const line = lineLatLngs.map(p => [p.lng, p.lat]);
+    if (line.length < 2) return null;
+
+    const polyGJ = turf.polygon([ring]);
+    const lineGJ = turf.lineString(line);
+    let inter;
+    try { inter = turf.lineIntersect(lineGJ, polyGJ); } catch (e) { return null; }
+    if (!inter || inter.features.length < 2) return null;
+
+    function locateOnPath(path, pt) {
+      let best = null;
+      for (let i = 0; i < path.length - 1; i++) {
+        const a = path[i], b = path[i + 1];
+        const dx = b[0] - a[0], dy = b[1] - a[1];
+        const len2 = dx * dx + dy * dy;
+        if (len2 === 0) continue;
+        let t = ((pt[0] - a[0]) * dx + (pt[1] - a[1]) * dy) / len2;
+        if (t < -1e-9 || t > 1 + 1e-9) continue;
+        t = Math.max(0, Math.min(1, t));
+        const px = a[0] + t * dx, py = a[1] + t * dy;
+        const d2 = (px - pt[0]) ** 2 + (py - pt[1]) ** 2;
+        if (!best || d2 < best.d2) best = { i, t, d2 };
+      }
+      return best;
+    }
+
+    const pts = inter.features.map(f => {
+      const c = f.geometry.coordinates;
+      return { coord: c, onRing: locateOnPath(ring, c), onLine: locateOnPath(line, c) };
+    }).filter(p => p.onRing && p.onLine);
+    if (pts.length < 2) return null;
+    pts.sort((a, b) => (a.onLine.i - b.onLine.i) || (a.onLine.t - b.onLine.t));
+    const A = pts[0], B = pts[pts.length - 1];
+
+    // Line vertices strictly between A and B (following line direction)
+    const middleLine = [];
+    for (let i = A.onLine.i + 1; i <= B.onLine.i; i++) middleLine.push(line[i]);
+
+    const N = ring.length - 1; // unique vertices count
+
+    // Forward ring path: A → walk ring vertices → B
+    const forward = [A.coord];
+    let idx = (A.onRing.i + 1) % N;
+    let guard = 0;
+    const stopAfter = B.onRing.i; // last full vertex before B
+    // If A and B on same edge and B.t >= A.t, no ring vertices in between
+    if (!(A.onRing.i === B.onRing.i && B.onRing.t >= A.onRing.t)) {
+      while (guard++ < N + 2) {
+        forward.push(ring[idx]);
+        if (idx === stopAfter) break;
+        idx = (idx + 1) % N;
+      }
+    }
+    forward.push(B.coord);
+
+    // Backward ring path: B → walk ring vertices backwards → A
+    const backward = [B.coord];
+    idx = B.onRing.i;
+    guard = 0;
+    if (!(A.onRing.i === B.onRing.i && B.onRing.t >= A.onRing.t)) {
+      while (guard++ < N + 2) {
+        backward.push(ring[idx]);
+        if (idx === (A.onRing.i + 1) % N) break;
+        idx = (idx - 1 + N) % N;
+      }
+    }
+    backward.push(A.coord);
+
+    // Build two rings: each side of the ring closed by the cut line
+    const revMiddle = middleLine.slice().reverse();
+    const ring1 = [...forward, ...revMiddle, forward[0]];
+    const ring2 = [...backward, ...middleLine, backward[0]];
+
+    // Convert back to L.LatLng arrays (outer rings, closed)
+    const toLL = arr => arr.map(c => L.latLng(c[1], c[0]));
+    return [toLL(ring1), toLL(ring2)];
+  }
+
+  function performCut() {
+    if (!cutState.target || cutState.lineLatLngs.length < 2) {
+      alert('Cut line mein kam se kam 2 point chahiye.');
+      return;
+    }
+    let latlngs = cutState.target.getLatLngs();
+    while (Array.isArray(latlngs[0]) && Array.isArray(latlngs[0][0])) latlngs = latlngs[0];
+    if (Array.isArray(latlngs[0])) latlngs = latlngs[0];
+    const parts = splitPolygonByLine(latlngs, cutState.lineLatLngs);
+    if (!parts) {
+      alert('Cut line polygon ko cross nahi kar rahi (kam az kam 2 intersection chahiye). Line polygon ke andar sy guzarni chahiye.');
+      return;
+    }
+    // snapshot original for undo
+    const origGeoJSON = cutState.target.toGeoJSON();
+    origGeoJSON.properties = { ...(cutState.target.feature_props || {}) };
+
+    const origProps = cutState.target.feature_props || {};
+    // remove original
+    drawnItems.removeLayer(cutState.target);
+    cutState.target = null; cutState.originalStyle = null;
+
+    const addedIds = [];
+    parts.forEach((ring, i) => {
+      const p = L.polygon(ring, { color: '#2f6b3f' });
+      const id = idCounter++;
+      p.feature_props = { id, name: (origProps.name ? origProps.name + ' — part ' + (i + 1) : 'Cut part ' + (i + 1)) };
+      drawnItems.addLayer(p);
+      addedIds.push(id);
+    });
+
+    cutState.undoStack.push({ removed: origGeoJSON, addedIds });
+    if (cutState.undoStack.length > 20) cutState.undoStack.shift();
+
+    exitCutMode();
+    refreshList();
+  }
+
+  finishCutFab.onclick = performCut;
+
+  undoCutFab.onclick = function () {
+    const entry = cutState.undoStack.pop();
+    if (!entry) return;
+    // remove the pieces we added
+    const toRemove = [];
+    drawnItems.eachLayer(l => {
+      const id = l.feature_props && l.feature_props.id;
+      if (entry.addedIds.includes(id)) toRemove.push(l);
+    });
+    toRemove.forEach(l => drawnItems.removeLayer(l));
+    // restore original
+    const gj = entry.removed;
+    const restored = L.geoJSON(gj, { style: () => ({ color: '#2f6b3f' }) });
+    restored.eachLayer(l => {
+      l.feature_props = { ...(gj.properties || { id: idCounter++ }) };
+      drawnItems.addLayer(l);
+    });
+    setCutButtonsUI();
+    refreshList();
+  };
+
+  // Enable click-to-add-vertex while drawing cut line
+  map.on('click', (e) => { onCutMapClick(e); });
 
   // ---------- Add polygon by dimensions ----------
   const dimModal = document.getElementById('dimModal');
