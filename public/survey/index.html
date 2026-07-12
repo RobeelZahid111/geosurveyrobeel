@@ -790,6 +790,7 @@ placeholder="90, 60
     L.DomEvent.stopPropagation(e);
     if (cutState.active !== 'pick') return;
     highlightTarget(e.target);
+    detachCutPickHandlers();
     cutState.active = 'draw';
     map.getContainer().style.cursor = 'crosshair';
     setCutButtonsUI();
