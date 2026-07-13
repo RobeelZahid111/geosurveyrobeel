@@ -452,14 +452,9 @@ placeholder="90, 60
   // ---------- Persistence (localStorage) ----------
   function saveState() {
     try {
-      const layers = [];
-      drawnItems.eachLayer(l => layers.push(l));
-      const features = layers.map(layer => {
-        const gj = layer.toGeoJSON();
-        gj.properties = { ...(layer.feature_props || {}) };
-        return gj;
-      });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ type: 'FeatureCollection', features, idCounter }));
+      const snap = currentSnapshot();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
+      pushHistory();
     } catch (e) { console.warn('save failed', e); }
   }
 
