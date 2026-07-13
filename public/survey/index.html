@@ -463,28 +463,92 @@ placeholder="90, 60
     } catch (e) { console.warn('save failed', e); }
   }
 
+  function currentSnapshot() {
+    const layers = [];
+    drawnItems.eachLayer(l => layers.push(l));
+    const features = layers.map(layer => {
+      const gj = layer.toGeoJSON();
+      gj.properties = { ...(layer.feature_props || {}) };
+      return gj;
+    });
+    return { type: 'FeatureCollection', features, idCounter };
+  }
+
+  function applySnapshot(data) {
+    drawnItems.clearLayers();
+    selectedLayer = null;
+    if (!data) return;
+    if (data.idCounter) idCounter = data.idCounter;
+    if (!data.features || !data.features.length) return;
+    const gjLayer = L.geoJSON(data, {
+      pointToLayer: (f, latlng) => L.marker(latlng),
+      style: () => ({ color: '#2f6b3f' })
+    });
+    gjLayer.eachLayer(l => {
+      l.feature_props = (l.feature && l.feature.properties) ? { ...l.feature.properties } : { id: idCounter++ };
+      if (!l.feature_props.id) l.feature_props.id = idCounter++;
+      if (l instanceof L.Marker) {
+        l.options.draggable = true;
+        l.dragging.enable();
+        l.on('dragend', refreshList);
+      }
+      drawnItems.addLayer(l);
+    });
+  }
+
   function loadState() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
-      const data = JSON.parse(raw);
-      if (data.idCounter) idCounter = data.idCounter;
-      if (!data.features || !data.features.length) return;
-      const gjLayer = L.geoJSON(data, {
-        pointToLayer: (f, latlng) => L.marker(latlng),
-        style: () => ({ color: '#2f6b3f' })
-      });
-      gjLayer.eachLayer(l => {
-        l.feature_props = (l.feature && l.feature.properties) ? { ...l.feature.properties } : { id: idCounter++ };
-        if (l instanceof L.Marker) {
-          l.options.draggable = true;
-          l.dragging.enable();
-          l.on('dragend', refreshList);
-        }
-        drawnItems.addLayer(l);
-      });
+      applySnapshot(JSON.parse(raw));
     } catch (e) { console.warn('load failed', e); }
   }
+
+  // ---------- Undo / Redo history ----------
+  const history = { stack: [], redo: [], suppress: false, max: 100 };
+  function updateHistoryButtons() {
+    document.getElementById('histUndoFab').disabled = history.stack.length <= 1;
+    document.getElementById('histRedoFab').disabled = history.redo.length === 0;
+  }
+  function pushHistory() {
+    if (history.suppress) return;
+    const snap = JSON.stringify(currentSnapshot());
+    if (history.stack.length && history.stack[history.stack.length - 1] === snap) return;
+    history.stack.push(snap);
+    if (history.stack.length > history.max) history.stack.shift();
+    history.redo.length = 0;
+    updateHistoryButtons();
+  }
+  function doUndo() {
+    if (history.stack.length <= 1) return;
+    const cur = history.stack.pop();
+    history.redo.push(cur);
+    const prev = history.stack[history.stack.length - 1];
+    history.suppress = true;
+    applySnapshot(JSON.parse(prev));
+    history.suppress = false;
+    refreshList();
+    updateHistoryButtons();
+  }
+  function doRedo() {
+    if (!history.redo.length) return;
+    const next = history.redo.pop();
+    history.stack.push(next);
+    history.suppress = true;
+    applySnapshot(JSON.parse(next));
+    history.suppress = false;
+    refreshList();
+    updateHistoryButtons();
+  }
+  document.getElementById('histUndoFab').onclick = doUndo;
+  document.getElementById('histRedoFab').onclick = doRedo;
+  window.addEventListener('keydown', (e) => {
+    const isMod = e.ctrlKey || e.metaKey;
+    if (!isMod) return;
+    const key = e.key.toLowerCase();
+    if (key === 'z' && !e.shiftKey) { e.preventDefault(); doUndo(); }
+    else if ((key === 'y') || (key === 'z' && e.shiftKey)) { e.preventDefault(); doRedo(); }
+  });
 
   function refreshList() {
     updateMeasurements();
