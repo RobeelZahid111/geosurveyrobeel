@@ -120,6 +120,9 @@
   .cut-line-preview{ }
   #rotateFab{ top:12px; right:12px; }
   #rotateFab input{ width:60px; padding:2px 4px; border:1px solid var(--border); border-radius:3px; font-size:12px; }
+  #historyFabs{ position:absolute; top:12px; left:60px; z-index:1000; display:flex; gap:6px; }
+  #historyFabs .map-fab{ position:static; padding:6px 10px; }
+  #historyFabs .map-fab[disabled]{ opacity:.4; cursor:not-allowed; }
 
   #propModal, #dimModal{
     position:fixed;inset:0;background:rgba(20,25,20,.45);display:none;align-items:center;justify-content:center;z-index:2000;
