@@ -1194,18 +1194,53 @@ placeholder="90, 60
     openPropsModal(poly);
   };
 
-  // ---------- Export single feature ----------
+  // ---------- Export single feature (Points format) ----------
+  function buildPointsFeatureCollection(layer, idx) {
+    let latlngs = [];
+    let isPolygon = false;
+    if (layer instanceof L.Marker) {
+      latlngs = [layer.getLatLng()];
+    } else if (layer.getLatLngs) {
+      isPolygon = layer instanceof L.Polygon;
+      let raw = layer.getLatLngs();
+      while (Array.isArray(raw[0])) raw = raw[0];
+      latlngs = raw;
+    }
+    const eq = (a, b) => Math.abs(a.lat - b.lat) < 1e-9 && Math.abs(a.lng - b.lng) < 1e-9;
+    latlngs = latlngs.filter((ll, i, arr) => i === 0 || !eq(ll, arr[i - 1]));
+    if (isPolygon && latlngs.length > 1 && eq(latlngs[0], latlngs[latlngs.length - 1])) latlngs.pop();
+
+    const features = [];
+    let fid = 1;
+    latlngs.forEach(ll => {
+      features.push({
+        type: 'Feature',
+        id: fid,
+        geometry: { type: 'Point', coordinates: [ll.lng, ll.lat] },
+        properties: { FID: fid, ID: idx }
+      });
+      fid++;
+    });
+    return { type: 'FeatureCollection', features };
+  }
+
+  function pointsBlobFor(layer, idx) {
+    const fc = buildPointsFeatureCollection(layer, idx);
+    const jsonString = JSON.stringify(fc, null, 2).replace(/"([^"]+)":/g, '"$1" :');
+    return new Blob([jsonString], { type: 'application/geo+json' });
+  }
+
+  function parcelFilename(layer, idx) {
+    return (layer.feature_props && layer.feature_props.name)
+      ? sanitizeFilename(layer.feature_props.name)
+      : ('parcel_' + idx);
+  }
+
   function exportSingleLayer(layer) {
-    const gj = layer.toGeoJSON();
-    const area = computeKanalMarlaSqft(layer);
-    gj.properties = {
-      ...(layer.feature_props || {}),
-      ...(area ? { area_kanal_marla_sqft: area.label, area_kanal: area.kanal, area_marla: area.marla, area_sqft: area.sqft, area_total_sqft: area.areaSqFt } : {})
-    };
-    const fc = { type: 'FeatureCollection', features: [gj] };
-    const blob = new Blob([JSON.stringify(fc, null, 2)], { type: 'application/geo+json' });
-    const nm = (layer.feature_props && layer.feature_props.name) ? sanitizeFilename(layer.feature_props.name) : 'feature_' + (layer.feature_props && layer.feature_props.id || 1);
-    downloadBlob(blob, nm + '.geojson');
+    let idx = 1, i = 0;
+    drawnItems.eachLayer(l => { i++; if (l === layer) idx = i; });
+    const blob = pointsBlobFor(layer, idx);
+    downloadBlob(blob, parcelFilename(layer, idx) + '.geojson');
   }
 
   // ---------- Divide polygon by target area ----------
