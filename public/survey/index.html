@@ -75,7 +75,8 @@
     display:flex;align-items:center;
   }
   .icon-btn:hover{background:#eeecdf;color:var(--accent);}
-  .icon-btn svg{width:15px;height:15px;}
+  .icon-btn svg{width:15px;height:15px;pointer-events:none;}
+  .icon-btn *{pointer-events:none;}
 
   .tag{
     display:inline-block;font-size:10px;padding:1px 6px;border-radius:10px;background:#e7f0e5;color:var(--line-dark);
