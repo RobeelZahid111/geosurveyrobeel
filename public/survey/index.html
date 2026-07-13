@@ -1362,23 +1362,26 @@ placeholder="90, 60
     } catch (err) { alert('Search failed. Check internet connection.'); }
   };
 
-  // ---------- Export (combined) ----------
-  document.getElementById('exportBtn').onclick = function () {
+  // ---------- Export (combined) — ZIP of per-parcel Points files ----------
+  document.getElementById('exportBtn').onclick = async function () {
     const layers = [];
     drawnItems.eachLayer(l => layers.push(l));
     if (layers.length === 0) { alert('No features to export.'); return; }
-    const features = layers.map(layer => {
-      const gj = layer.toGeoJSON();
-      const area = computeKanalMarlaSqft(layer);
-      gj.properties = {
-        ...(layer.feature_props || {}),
-        ...(area ? { area_kanal_marla_sqft: area.label, area_kanal: area.kanal, area_marla: area.marla, area_sqft: area.sqft, area_total_sqft: area.areaSqFt } : {})
-      };
-      return gj;
+    if (typeof JSZip === 'undefined') { alert('ZIP library load nahi ho saki. Internet check karein.'); return; }
+
+    const baseName = sanitizeFilename(promptForFilename('survey_points'));
+    const zip = new JSZip();
+    const used = {};
+    layers.forEach((layer, i) => {
+      const idx = i + 1;
+      let name = parcelFilename(layer, idx);
+      if (used[name] != null) { used[name]++; name = name + '_' + used[name]; } else { used[name] = 1; }
+      const fc = buildPointsFeatureCollection(layer, idx);
+      const jsonString = JSON.stringify(fc, null, 2).replace(/"([^"]+)":/g, '"$1" :');
+      zip.file(name + '.geojson', jsonString);
     });
-    const fc = { type: 'FeatureCollection', features };
-    const blob = new Blob([JSON.stringify(fc, null, 2)], { type: 'application/geo+json' });
-    downloadBlob(blob, sanitizeFilename(promptForFilename('survey_geometry')) + '.geojson');
+    const blob = await zip.generateAsync({ type: 'blob' });
+    downloadBlob(blob, baseName + '.zip');
   };
 
   function downloadBlob(blob, filename) {
@@ -1389,49 +1392,17 @@ placeholder="90, 60
     URL.revokeObjectURL(url);
   }
 
-  // ---------- Export Points — separate file per feature ----------
+  // ---------- Export GeoJSON — separate file per feature ----------
   document.getElementById('exportPointsBtn').onclick = async function () {
     const layers = [];
     drawnItems.eachLayer(l => layers.push(l));
     if (layers.length === 0) { alert('No features to export.'); return; }
 
     const baseName = sanitizeFilename(promptForFilename('survey_points'));
-
-    for (let idx = 0; idx < layers.length; idx++) {
-      const layer = layers[idx];
-      let latlngs = [];
-      let isPolygon = false;
-      if (layer instanceof L.Marker) {
-        latlngs = [layer.getLatLng()];
-      } else if (layer.getLatLngs) {
-        isPolygon = layer instanceof L.Polygon;
-        let raw = layer.getLatLngs();
-        while (Array.isArray(raw[0])) raw = raw[0];
-        latlngs = raw;
-      }
-
-      const eq = (a, b) => Math.abs(a.lat - b.lat) < 1e-9 && Math.abs(a.lng - b.lng) < 1e-9;
-      latlngs = latlngs.filter((ll, i, arr) => i === 0 || !eq(ll, arr[i - 1]));
-      if (isPolygon && latlngs.length > 1 && eq(latlngs[0], latlngs[latlngs.length - 1])) latlngs.pop();
-
-      const pointFeatures = [];
-      let fid = 1;
-      latlngs.forEach(ll => {
-        pointFeatures.push({
-          type: 'Feature',
-          id: fid,
-          geometry: { type: 'Point', coordinates: [ll.lng, ll.lat] },
-          properties: { FID: fid, ID: idx + 1 }
-        });
-        fid++;
-      });
-
-      const fc = { type: 'FeatureCollection', features: pointFeatures };
-      const jsonString = JSON.stringify(fc, null, 2).replace(/"([^"]+)":/g, '"$1" :');
-      const blob = new Blob([jsonString], { type: 'application/geo+json' });
-      const propName = (layer.feature_props && layer.feature_props.name) ? sanitizeFilename(layer.feature_props.name) : ('parcel_' + (idx + 1));
-      downloadBlob(blob, `${baseName}_${propName}.geojson`);
-      // small delay so browser doesn't block multiple downloads
+    for (let i = 0; i < layers.length; i++) {
+      const idx = i + 1;
+      const blob = pointsBlobFor(layers[i], idx);
+      downloadBlob(blob, `${baseName}_${parcelFilename(layers[i], idx)}.geojson`);
       await new Promise(r => setTimeout(r, 300));
     }
   };
