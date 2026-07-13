@@ -586,15 +586,19 @@ placeholder="90, 60
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6"/></svg>
           </button>
         </div>`;
-      item.onclick = () => selectLayer(layer, { zoom: false, fromList: true });
-      item.querySelector('[data-action="zoom"]').onclick = (e) => {
-        e.stopPropagation();
+      item.addEventListener('click', (e) => {
+        if (e.target.closest('.icon-btn')) return;
+        selectLayer(layer, { zoom: false, fromList: true });
+      });
+      item.querySelector('[data-action="zoom"]').addEventListener('click', (e) => {
+        e.stopPropagation(); e.preventDefault();
         selectLayer(layer, { zoom: true, fromList: true });
-      };
-      item.querySelector('[data-action="export"]').onclick = (e) => {
-        e.stopPropagation();
-        exportSingleLayer(layer);
-      };
+      });
+      item.querySelector('[data-action="export"]').addEventListener('click', (e) => {
+        e.stopPropagation(); e.preventDefault();
+        try { exportSingleLayer(layer); }
+        catch (err) { alert('Download failed: ' + err.message); }
+      });
       item.querySelector('[data-action="edit"]').onclick = (e) => {
         e.stopPropagation();
         openPropsModal(layer);
