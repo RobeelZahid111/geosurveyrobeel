@@ -120,6 +120,9 @@
   .cut-line-preview{ }
   #rotateFab{ top:12px; right:12px; }
   #rotateFab input{ width:60px; padding:2px 4px; border:1px solid var(--border); border-radius:3px; font-size:12px; }
+  #historyFabs{ position:absolute; top:12px; left:60px; z-index:1000; display:flex; gap:6px; }
+  #historyFabs .map-fab{ position:static; padding:6px 10px; }
+  #historyFabs .map-fab[disabled]{ opacity:.4; cursor:not-allowed; }
 
   #propModal, #dimModal{
     position:fixed;inset:0;background:rgba(20,25,20,.45);display:none;align-items:center;justify-content:center;z-index:2000;
@@ -229,7 +232,7 @@
       </button>
       <button class="btn accent" id="exportPointsBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M6 8v6M18 8v6M8 6h8M9 16l2-2M15 16l-2-2"/></svg>
-        Export Points (separate files)
+        Export GeoJSON (separate files)
       </button>
       <button class="btn" id="importBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 0l-4 4m4-4l4 4M4 3h16"/></svg>
@@ -265,6 +268,10 @@
     <button class="map-fab" id="undoCutFab" title="Undo last cut">
       ↺ Undo Cut
     </button>
+    <div id="historyFabs">
+      <button class="map-fab" id="histUndoFab" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
+      <button class="map-fab" id="histRedoFab" title="Redo (Ctrl+Y)" disabled>↷ Redo</button>
+    </div>
     <div class="map-fab" id="rotateFab" title="Map rotation (degrees, 0 = North up)">
       <span>🧭</span>
       <input type="number" id="rotateInput" value="0" min="-180" max="180" step="5">
@@ -343,6 +350,7 @@ placeholder="90, 60
 <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.2/dist/leaflet-geoman.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js"></script>
 <script src="https://unpkg.com/@turf/turf@7.1.0/turf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
   const STORAGE_KEY = 'survey_geo_builder_v1';
 
@@ -444,39 +452,98 @@ placeholder="90, 60
   // ---------- Persistence (localStorage) ----------
   function saveState() {
     try {
-      const layers = [];
-      drawnItems.eachLayer(l => layers.push(l));
-      const features = layers.map(layer => {
-        const gj = layer.toGeoJSON();
-        gj.properties = { ...(layer.feature_props || {}) };
-        return gj;
-      });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ type: 'FeatureCollection', features, idCounter }));
+      const snap = currentSnapshot();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
+      pushHistory();
     } catch (e) { console.warn('save failed', e); }
+  }
+
+  function currentSnapshot() {
+    const layers = [];
+    drawnItems.eachLayer(l => layers.push(l));
+    const features = layers.map(layer => {
+      const gj = layer.toGeoJSON();
+      gj.properties = { ...(layer.feature_props || {}) };
+      return gj;
+    });
+    return { type: 'FeatureCollection', features, idCounter };
+  }
+
+  function applySnapshot(data) {
+    drawnItems.clearLayers();
+    selectedLayer = null;
+    if (!data) return;
+    if (data.idCounter) idCounter = data.idCounter;
+    if (!data.features || !data.features.length) return;
+    const gjLayer = L.geoJSON(data, {
+      pointToLayer: (f, latlng) => L.marker(latlng),
+      style: () => ({ color: '#2f6b3f' })
+    });
+    gjLayer.eachLayer(l => {
+      l.feature_props = (l.feature && l.feature.properties) ? { ...l.feature.properties } : { id: idCounter++ };
+      if (!l.feature_props.id) l.feature_props.id = idCounter++;
+      if (l instanceof L.Marker) {
+        l.options.draggable = true;
+        l.dragging.enable();
+        l.on('dragend', refreshList);
+      }
+      drawnItems.addLayer(l);
+    });
   }
 
   function loadState() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
-      const data = JSON.parse(raw);
-      if (data.idCounter) idCounter = data.idCounter;
-      if (!data.features || !data.features.length) return;
-      const gjLayer = L.geoJSON(data, {
-        pointToLayer: (f, latlng) => L.marker(latlng),
-        style: () => ({ color: '#2f6b3f' })
-      });
-      gjLayer.eachLayer(l => {
-        l.feature_props = (l.feature && l.feature.properties) ? { ...l.feature.properties } : { id: idCounter++ };
-        if (l instanceof L.Marker) {
-          l.options.draggable = true;
-          l.dragging.enable();
-          l.on('dragend', refreshList);
-        }
-        drawnItems.addLayer(l);
-      });
+      applySnapshot(JSON.parse(raw));
     } catch (e) { console.warn('load failed', e); }
   }
+
+  // ---------- Undo / Redo history ----------
+  const history = { stack: [], redo: [], suppress: false, max: 100 };
+  function updateHistoryButtons() {
+    document.getElementById('histUndoFab').disabled = history.stack.length <= 1;
+    document.getElementById('histRedoFab').disabled = history.redo.length === 0;
+  }
+  function pushHistory() {
+    if (history.suppress) return;
+    const snap = JSON.stringify(currentSnapshot());
+    if (history.stack.length && history.stack[history.stack.length - 1] === snap) return;
+    history.stack.push(snap);
+    if (history.stack.length > history.max) history.stack.shift();
+    history.redo.length = 0;
+    updateHistoryButtons();
+  }
+  function doUndo() {
+    if (history.stack.length <= 1) return;
+    const cur = history.stack.pop();
+    history.redo.push(cur);
+    const prev = history.stack[history.stack.length - 1];
+    history.suppress = true;
+    applySnapshot(JSON.parse(prev));
+    history.suppress = false;
+    refreshList();
+    updateHistoryButtons();
+  }
+  function doRedo() {
+    if (!history.redo.length) return;
+    const next = history.redo.pop();
+    history.stack.push(next);
+    history.suppress = true;
+    applySnapshot(JSON.parse(next));
+    history.suppress = false;
+    refreshList();
+    updateHistoryButtons();
+  }
+  document.getElementById('histUndoFab').onclick = doUndo;
+  document.getElementById('histRedoFab').onclick = doRedo;
+  window.addEventListener('keydown', (e) => {
+    const isMod = e.ctrlKey || e.metaKey;
+    if (!isMod) return;
+    const key = e.key.toLowerCase();
+    if (key === 'z' && !e.shiftKey) { e.preventDefault(); doUndo(); }
+    else if ((key === 'y') || (key === 'z' && e.shiftKey)) { e.preventDefault(); doRedo(); }
+  });
 
   function refreshList() {
     updateMeasurements();
@@ -1127,18 +1194,53 @@ placeholder="90, 60
     openPropsModal(poly);
   };
 
-  // ---------- Export single feature ----------
+  // ---------- Export single feature (Points format) ----------
+  function buildPointsFeatureCollection(layer, idx) {
+    let latlngs = [];
+    let isPolygon = false;
+    if (layer instanceof L.Marker) {
+      latlngs = [layer.getLatLng()];
+    } else if (layer.getLatLngs) {
+      isPolygon = layer instanceof L.Polygon;
+      let raw = layer.getLatLngs();
+      while (Array.isArray(raw[0])) raw = raw[0];
+      latlngs = raw;
+    }
+    const eq = (a, b) => Math.abs(a.lat - b.lat) < 1e-9 && Math.abs(a.lng - b.lng) < 1e-9;
+    latlngs = latlngs.filter((ll, i, arr) => i === 0 || !eq(ll, arr[i - 1]));
+    if (isPolygon && latlngs.length > 1 && eq(latlngs[0], latlngs[latlngs.length - 1])) latlngs.pop();
+
+    const features = [];
+    let fid = 1;
+    latlngs.forEach(ll => {
+      features.push({
+        type: 'Feature',
+        id: fid,
+        geometry: { type: 'Point', coordinates: [ll.lng, ll.lat] },
+        properties: { FID: fid, ID: idx }
+      });
+      fid++;
+    });
+    return { type: 'FeatureCollection', features };
+  }
+
+  function pointsBlobFor(layer, idx) {
+    const fc = buildPointsFeatureCollection(layer, idx);
+    const jsonString = JSON.stringify(fc, null, 2).replace(/"([^"]+)":/g, '"$1" :');
+    return new Blob([jsonString], { type: 'application/geo+json' });
+  }
+
+  function parcelFilename(layer, idx) {
+    return (layer.feature_props && layer.feature_props.name)
+      ? sanitizeFilename(layer.feature_props.name)
+      : ('parcel_' + idx);
+  }
+
   function exportSingleLayer(layer) {
-    const gj = layer.toGeoJSON();
-    const area = computeKanalMarlaSqft(layer);
-    gj.properties = {
-      ...(layer.feature_props || {}),
-      ...(area ? { area_kanal_marla_sqft: area.label, area_kanal: area.kanal, area_marla: area.marla, area_sqft: area.sqft, area_total_sqft: area.areaSqFt } : {})
-    };
-    const fc = { type: 'FeatureCollection', features: [gj] };
-    const blob = new Blob([JSON.stringify(fc, null, 2)], { type: 'application/geo+json' });
-    const nm = (layer.feature_props && layer.feature_props.name) ? sanitizeFilename(layer.feature_props.name) : 'feature_' + (layer.feature_props && layer.feature_props.id || 1);
-    downloadBlob(blob, nm + '.geojson');
+    let idx = 1, i = 0;
+    drawnItems.eachLayer(l => { i++; if (l === layer) idx = i; });
+    const blob = pointsBlobFor(layer, idx);
+    downloadBlob(blob, parcelFilename(layer, idx) + '.geojson');
   }
 
   // ---------- Divide polygon by target area ----------
@@ -1260,23 +1362,26 @@ placeholder="90, 60
     } catch (err) { alert('Search failed. Check internet connection.'); }
   };
 
-  // ---------- Export (combined) ----------
-  document.getElementById('exportBtn').onclick = function () {
+  // ---------- Export (combined) — ZIP of per-parcel Points files ----------
+  document.getElementById('exportBtn').onclick = async function () {
     const layers = [];
     drawnItems.eachLayer(l => layers.push(l));
     if (layers.length === 0) { alert('No features to export.'); return; }
-    const features = layers.map(layer => {
-      const gj = layer.toGeoJSON();
-      const area = computeKanalMarlaSqft(layer);
-      gj.properties = {
-        ...(layer.feature_props || {}),
-        ...(area ? { area_kanal_marla_sqft: area.label, area_kanal: area.kanal, area_marla: area.marla, area_sqft: area.sqft, area_total_sqft: area.areaSqFt } : {})
-      };
-      return gj;
+    if (typeof JSZip === 'undefined') { alert('ZIP library load nahi ho saki. Internet check karein.'); return; }
+
+    const baseName = sanitizeFilename(promptForFilename('survey_points'));
+    const zip = new JSZip();
+    const used = {};
+    layers.forEach((layer, i) => {
+      const idx = i + 1;
+      let name = parcelFilename(layer, idx);
+      if (used[name] != null) { used[name]++; name = name + '_' + used[name]; } else { used[name] = 1; }
+      const fc = buildPointsFeatureCollection(layer, idx);
+      const jsonString = JSON.stringify(fc, null, 2).replace(/"([^"]+)":/g, '"$1" :');
+      zip.file(name + '.geojson', jsonString);
     });
-    const fc = { type: 'FeatureCollection', features };
-    const blob = new Blob([JSON.stringify(fc, null, 2)], { type: 'application/geo+json' });
-    downloadBlob(blob, sanitizeFilename(promptForFilename('survey_geometry')) + '.geojson');
+    const blob = await zip.generateAsync({ type: 'blob' });
+    downloadBlob(blob, baseName + '.zip');
   };
 
   function downloadBlob(blob, filename) {
@@ -1287,49 +1392,17 @@ placeholder="90, 60
     URL.revokeObjectURL(url);
   }
 
-  // ---------- Export Points — separate file per feature ----------
+  // ---------- Export GeoJSON — separate file per feature ----------
   document.getElementById('exportPointsBtn').onclick = async function () {
     const layers = [];
     drawnItems.eachLayer(l => layers.push(l));
     if (layers.length === 0) { alert('No features to export.'); return; }
 
     const baseName = sanitizeFilename(promptForFilename('survey_points'));
-
-    for (let idx = 0; idx < layers.length; idx++) {
-      const layer = layers[idx];
-      let latlngs = [];
-      let isPolygon = false;
-      if (layer instanceof L.Marker) {
-        latlngs = [layer.getLatLng()];
-      } else if (layer.getLatLngs) {
-        isPolygon = layer instanceof L.Polygon;
-        let raw = layer.getLatLngs();
-        while (Array.isArray(raw[0])) raw = raw[0];
-        latlngs = raw;
-      }
-
-      const eq = (a, b) => Math.abs(a.lat - b.lat) < 1e-9 && Math.abs(a.lng - b.lng) < 1e-9;
-      latlngs = latlngs.filter((ll, i, arr) => i === 0 || !eq(ll, arr[i - 1]));
-      if (isPolygon && latlngs.length > 1 && eq(latlngs[0], latlngs[latlngs.length - 1])) latlngs.pop();
-
-      const pointFeatures = [];
-      let fid = 1;
-      latlngs.forEach(ll => {
-        pointFeatures.push({
-          type: 'Feature',
-          id: fid,
-          geometry: { type: 'Point', coordinates: [ll.lng, ll.lat] },
-          properties: { FID: fid, ID: idx + 1 }
-        });
-        fid++;
-      });
-
-      const fc = { type: 'FeatureCollection', features: pointFeatures };
-      const jsonString = JSON.stringify(fc, null, 2).replace(/"([^"]+)":/g, '"$1" :');
-      const blob = new Blob([jsonString], { type: 'application/geo+json' });
-      const propName = (layer.feature_props && layer.feature_props.name) ? sanitizeFilename(layer.feature_props.name) : ('parcel_' + (idx + 1));
-      downloadBlob(blob, `${baseName}_${propName}.geojson`);
-      // small delay so browser doesn't block multiple downloads
+    for (let i = 0; i < layers.length; i++) {
+      const idx = i + 1;
+      const blob = pointsBlobFor(layers[i], idx);
+      downloadBlob(blob, `${baseName}_${parcelFilename(layers[i], idx)}.geojson`);
       await new Promise(r => setTimeout(r, 300));
     }
   };
