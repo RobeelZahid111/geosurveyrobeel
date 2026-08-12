@@ -219,6 +219,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.12 8.12L20 20M8.12 15.88L20 4"/></svg>
         Cut polygon
       </button>
+      <button class="btn" id="mergeBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h9v9H4zM11 11h9v9h-9z"/><path d="M11 7h6v4M7 11v6h4"/></svg>
+        Merge polygons
+      </button>
       <button class="btn" id="divideBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16"/><path d="M9 4v16M15 4v16"/></svg>
         Divide polygon by area
@@ -930,9 +934,10 @@ placeholder="90, 60
     const polyGJ = turf.polygon([closedRing]);
     const ringPath = [...openRing, openRing[0]];
 
-    // Take only the part of the (extended) sketch that actually lies INSIDE the parcel.
-    // This supports L-shaped / corner cuts, not just straight through-cuts.
-    const cutPath = interiorSegment(line, sketchLine, polyGJ);
+    // Clip the extended sketch at its first and last parcel-boundary crossings.
+    // All user-drawn intermediate vertices are preserved, so bent/L-shaped cuts
+    // behave like ArcGIS rather than being replaced by a straight chord.
+    const cutPath = clipSketchToBoundary(line, polyGJ);
     if (!cutPath || cutPath.length < 2) return null;
 
     const A = { coord: cutPath[0], onRing: locateOnPath(ringPath, cutPath[0]) };
@@ -1030,34 +1035,34 @@ placeholder="90, 60
       return coords[0];
     }
 
-    // Keep only the portion of the cut line that runs inside the parcel and best
-    // matches what the user actually sketched (works for straight and L-shaped cuts).
-    function interiorSegment(lineCoords, sketch, poly) {
-      let pieces;
+    function clipSketchToBoundary(lineCoords, poly) {
+      const measures = cumulativeMeasures(lineCoords);
+      let hits;
       try {
-        const split = turf.lineSplit(turf.lineString(lineCoords), poly);
-        pieces = (split && split.features.length)
-          ? split.features.map(f => f.geometry.coordinates)
-          : [lineCoords];
-      } catch (e) { pieces = [lineCoords]; }
+        hits = turf.lineIntersect(turf.lineString(lineCoords), turf.polygonToLine(poly));
+      } catch (e) { return null; }
+      const crossings = hits.features.map(f => {
+        const coord = f.geometry.coordinates;
+        const pos = locateOnPath(lineCoords, coord, measures);
+        return pos ? { coord, pos } : null;
+      }).filter(Boolean).sort((a, b) => a.pos.measure - b.pos.measure)
+        .filter((p, i, arr) => i === 0 || dist2(p.coord, arr[i - 1].coord) > EPS * EPS);
+      if (crossings.length < 2) return null;
 
-      let best = null;
-      pieces.forEach(coords => {
-        coords = cleanOpenCoords(coords);
-        if (coords.length < 2) return;
-        const mid = pathMidpoint(coords);
-        let inside = false;
-        try { inside = turf.booleanPointInPolygon(turf.point(mid), poly); } catch (e) { inside = false; }
-        if (!inside) return;
-        let score = 0;
-        sketch.forEach(p => {
-          let d = Infinity;
-          for (let i = 0; i < coords.length - 1; i++) d = Math.min(d, pointSegDist2(p, coords[i], coords[i + 1]));
-          score += d;
-        });
-        if (!best || score < best.score) best = { coords, score };
-      });
-      return best ? best.coords : null;
+      const first = crossings[0];
+      const last = crossings[crossings.length - 1];
+      const clipped = [first.coord];
+      for (let i = first.pos.i + 1; i <= last.pos.i; i++) clipped.push(lineCoords[i]);
+      clipped.push(last.coord);
+      const result = cleanOpenCoords(clipped);
+      if (result.length < 2) return null;
+
+      // A valid ArcGIS-style cut must remain inside the parcel between crossings.
+      for (let i = 0; i < result.length - 1; i++) {
+        const mid = [(result[i][0] + result[i + 1][0]) / 2, (result[i][1] + result[i + 1][1]) / 2];
+        if (!turf.booleanPointInPolygon(turf.point(mid), poly, { ignoreBoundary: false })) return null;
+      }
+      return result;
     }
 
 
@@ -1155,6 +1160,83 @@ placeholder="90, 60
 
   // Enable click-to-add-vertex while drawing cut line
   map.on('click', (e) => { onCutMapClick(e); });
+
+  // ---------- Merge touching polygons ----------
+  const mergeBtn = document.getElementById('mergeBtn');
+  const mergeState = { active: false, layers: new Set() };
+
+  function paintMergeSelection() {
+    drawnItems.eachLayer(layer => {
+      if (!(layer instanceof L.Polygon) || !layer.setStyle) return;
+      if (mergeState.layers.has(layer)) layer.setStyle({ color: '#c96a3b', weight: 5, dashArray: '6 4' });
+      else if (mergeState.active) layer.setStyle({ color: layer._origColor || '#2f6b3f', weight: 3, dashArray: null });
+    });
+    mergeBtn.innerHTML = mergeState.active
+      ? `✓ Finish merge (${mergeState.layers.size})`
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h9v9H4zM11 11h9v9h-9z"/><path d="M11 7h6v4M7 11v6h4"/></svg> Merge polygons';
+    mergeBtn.classList.toggle('primary', mergeState.active);
+  }
+
+  function onPolygonPickForMerge(e) {
+    if (!mergeState.active) return;
+    L.DomEvent.stopPropagation(e);
+    const layer = e.target;
+    if (mergeState.layers.has(layer)) mergeState.layers.delete(layer);
+    else mergeState.layers.add(layer);
+    paintMergeSelection();
+    document.getElementById('coordsStatus').textContent = `${mergeState.layers.size} parcels selected for merge`;
+  }
+
+  function stopMergeMode() {
+    drawnItems.eachLayer(layer => {
+      if (layer instanceof L.Polygon) {
+        layer.off('click', onPolygonPickForMerge);
+        if (layer.setStyle) layer.setStyle({ color: layer._origColor || '#2f6b3f', weight: 3, dashArray: null });
+      }
+    });
+    mergeState.active = false;
+    mergeState.layers.clear();
+    paintMergeSelection();
+  }
+
+  function finishMerge() {
+    const layers = [...mergeState.layers];
+    if (layers.length < 2) { alert('Merge ke liye kam az kam 2 polygons select karein.'); return; }
+    let merged;
+    try {
+      const features = layers.map(layer => layer.toGeoJSON());
+      merged = turf.union(turf.featureCollection(features));
+    } catch (e) {
+      alert('Merge nahi ho saka. Sirf aapas mein touching ya overlapping parcels select karein.');
+      return;
+    }
+    if (!merged || merged.geometry.type !== 'Polygon') {
+      alert('Selected parcels aapas mein connected nahi hain. Sirf touching parcels merge ho sakte hain.');
+      return;
+    }
+    const firstProps = { ...(layers[0].feature_props || {}) };
+    layers.forEach(layer => drawnItems.removeLayer(layer));
+    const mergedGroup = L.geoJSON(merged, { style: () => ({ color: '#2f6b3f' }) });
+    mergedGroup.eachLayer(layer => {
+      layer.feature_props = { ...firstProps, id: idCounter++, name: firstProps.name ? firstProps.name + ' — merged' : 'Merged parcel' };
+      drawnItems.addLayer(layer);
+      selectedLayer = layer;
+    });
+    stopMergeMode();
+    refreshList();
+  }
+
+  mergeBtn.onclick = function () {
+    if (cutState.active) { alert('Pehle Cut mode cancel karein.'); return; }
+    if (mergeState.active) { finishMerge(); return; }
+    mergeState.active = true;
+    if (selectedLayer instanceof L.Polygon) mergeState.layers.add(selectedLayer);
+    drawnItems.eachLayer(layer => {
+      if (layer instanceof L.Polygon) layer.on('click', onPolygonPickForMerge);
+    });
+    paintMergeSelection();
+    document.getElementById('coordsStatus').textContent = 'Merge: 2 ya zyada touching parcels tap karein, phir Finish merge dabayein.';
+  };
 
   // ---------- Add polygon by dimensions ----------
   const dimModal = document.getElementById('dimModal');
