@@ -928,30 +928,18 @@ placeholder="90, 60
     if (line.length < 2) return null;
 
     const polyGJ = turf.polygon([closedRing]);
-    const lineGJ = turf.lineString(line);
-    let inter;
-    try { inter = turf.lineIntersect(lineGJ, polyGJ); } catch (e) { return null; }
-    if (!inter || inter.features.length < 2) return null;
-
     const ringPath = [...openRing, openRing[0]];
-    const lineMeasures = cumulativeMeasures(line);
 
-    const pts = inter.features.map(f => {
-      const c = f.geometry.coordinates;
-      const onRing = locateOnPath(ringPath, c);
-      const onLine = locateOnPath(line, c, lineMeasures);
-      return { coord: c, onRing, onLine };
-    }).filter(p => p.onRing && p.onLine)
-      .sort((a, b) => a.onLine.measure - b.onLine.measure)
-      .filter((p, i, arr) => i === 0 || dist2(p.coord, arr[i - 1].coord) > EPS * EPS);
+    // Take only the part of the (extended) sketch that actually lies INSIDE the parcel.
+    // This supports L-shaped / corner cuts, not just straight through-cuts.
+    const cutPath = interiorSegment(line, sketchLine, polyGJ);
+    if (!cutPath || cutPath.length < 2) return null;
 
-    if (pts.length < 2) return null;
-    const A = pts[0];
-    const B = pts[pts.length - 1];
+    const A = { coord: cutPath[0], onRing: locateOnPath(ringPath, cutPath[0]) };
+    const B = { coord: cutPath[cutPath.length - 1], onRing: locateOnPath(ringPath, cutPath[cutPath.length - 1]) };
+    if (!A.onRing || !B.onRing) return null;
     if (dist2(A.coord, B.coord) <= EPS * EPS) return null;
 
-    const cutPath = buildCutPath(A, B, line, lineMeasures);
-    if (cutPath.length < 2) return null;
 
     const boundaryAtoB = buildBoundaryPath(A, B, openRing);
     const boundaryBtoA = buildBoundaryPath(B, A, openRing);
