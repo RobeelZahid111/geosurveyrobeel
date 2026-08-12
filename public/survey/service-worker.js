@@ -1,4 +1,4 @@
-const CACHE_NAME = 'survey-geo-builder-v7';
+const CACHE_NAME = 'survey-geo-builder-v8';
 const SHELL_FILES = [
   './manifest.json',
   './icon-192.png',
