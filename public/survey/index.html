@@ -1007,14 +1007,59 @@ placeholder="90, 60
       return best;
     }
 
-    function buildCutPath(A, B, path, measures) {
-      const result = [A.coord];
-      for (let i = 1; i < path.length - 1; i++) {
-        if (measures[i] > A.onLine.measure + EPS && measures[i] < B.onLine.measure - EPS) result.push(path[i]);
-      }
-      result.push(B.coord);
-      return cleanOpenCoords(result);
+    function pointSegDist2(p, a, b) {
+      const dx = b[0] - a[0], dy = b[1] - a[1];
+      const len2 = dx * dx + dy * dy;
+      if (len2 === 0) return dist2(p, a);
+      let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2;
+      t = Math.max(0, Math.min(1, t));
+      return dist2(p, [a[0] + t * dx, a[1] + t * dy]);
     }
+
+    function pathMidpoint(coords) {
+      const m = cumulativeMeasures(coords);
+      const half = m[m.length - 1] / 2;
+      for (let i = 1; i < coords.length; i++) {
+        if (m[i] >= half) {
+          const seg = m[i] - m[i - 1] || 1;
+          const t = (half - m[i - 1]) / seg;
+          return [coords[i - 1][0] + (coords[i][0] - coords[i - 1][0]) * t,
+                  coords[i - 1][1] + (coords[i][1] - coords[i - 1][1]) * t];
+        }
+      }
+      return coords[0];
+    }
+
+    // Keep only the portion of the cut line that runs inside the parcel and best
+    // matches what the user actually sketched (works for straight and L-shaped cuts).
+    function interiorSegment(lineCoords, sketch, poly) {
+      let pieces;
+      try {
+        const split = turf.lineSplit(turf.lineString(lineCoords), poly);
+        pieces = (split && split.features.length)
+          ? split.features.map(f => f.geometry.coordinates)
+          : [lineCoords];
+      } catch (e) { pieces = [lineCoords]; }
+
+      let best = null;
+      pieces.forEach(coords => {
+        coords = cleanOpenCoords(coords);
+        if (coords.length < 2) return;
+        const mid = pathMidpoint(coords);
+        let inside = false;
+        try { inside = turf.booleanPointInPolygon(turf.point(mid), poly); } catch (e) { inside = false; }
+        if (!inside) return;
+        let score = 0;
+        sketch.forEach(p => {
+          let d = Infinity;
+          for (let i = 0; i < coords.length - 1; i++) d = Math.min(d, pointSegDist2(p, coords[i], coords[i + 1]));
+          score += d;
+        });
+        if (!best || score < best.score) best = { coords, score };
+      });
+      return best ? best.coords : null;
+    }
+
 
     function buildBoundaryPath(start, end, ring) {
       const n = ring.length;
