@@ -367,6 +367,33 @@ placeholder="90, 60
     rotateControl: false
   }).setView([31.4504, 73.1350], 13);
 
+  // ---- Tap-only vertex placement ----
+  // On touch, a pan/drag can end up as a synthetic click and drop a vertex.
+  // Swallow any click whose pointer moved more than a few pixels.
+  (function suppressDragClicks() {
+    const c = map.getContainer();
+    let sx = 0, sy = 0, moved = false, isTouch = false, t = 0;
+    const MOVE_TOL = 10;
+    c.addEventListener('pointerdown', (e) => {
+      isTouch = e.pointerType !== 'mouse';
+      sx = e.clientX; sy = e.clientY; moved = false;
+    }, true);
+    c.addEventListener('pointermove', (e) => {
+      if (!isTouch) return;
+      if (Math.abs(e.clientX - sx) > MOVE_TOL || Math.abs(e.clientY - sy) > MOVE_TOL) {
+        moved = true; t = Date.now();
+      }
+    }, true);
+    c.addEventListener('click', (e) => {
+      if (isTouch && moved && Date.now() - t < 1200) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    }, true);
+  })();
+
+
+
   function utmZoneFor(lng) { return Math.floor((lng + 180) / 6) + 1; }
   function toUTM(lat, lng) {
     const zone = utmZoneFor(lng);
