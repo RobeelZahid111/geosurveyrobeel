@@ -823,7 +823,9 @@ placeholder="90, 60
     originalStyle: null,
     lineLatLngs: [],
     previewLine: null,      // L.Polyline
-    previewMarkers: [],     // L.CircleMarker per vertex
+    ghostLine: null,        // dotted extension preview
+    previewMarkers: [],     // draggable vertex markers
+
     undoStack: []           // [{ removed: geojsonFeature, addedIds: [id,...] }]
   };
 
@@ -836,6 +838,7 @@ placeholder="90, 60
 
   function clearCutPreview() {
     if (cutState.previewLine) { map.removeLayer(cutState.previewLine); cutState.previewLine = null; }
+    if (cutState.ghostLine) { map.removeLayer(cutState.ghostLine); cutState.ghostLine = null; }
     cutState.previewMarkers.forEach(m => map.removeLayer(m));
     cutState.previewMarkers = [];
     cutState.lineLatLngs = [];
@@ -849,6 +852,7 @@ placeholder="90, 60
     cutState.originalStyle = null;
     cutState.active = false;
     clearCutPreview();
+    detachCutDrawHandlers();
     map.off('click', onCutMapClick);
     map.getContainer().style.cursor = '';
     setCutButtonsUI();
@@ -868,22 +872,85 @@ placeholder="90, 60
     highlightTarget(e.target);
     detachCutPickHandlers();
     cutState.active = 'draw';
+    attachCutDrawHandlers();
     map.getContainer().style.cursor = 'crosshair';
     setCutButtonsUI();
     document.getElementById('coordsStatus').textContent =
-      'Cut line draw karein: parcel ke darmiyan se line guzarein. App line ko boundary tak extend kar ke 2 parcels banayegi.';
+      'Cut line draw karein: points parcel ke andar/bahar kahin bhi lagayein. Points ko drag kar ke adjust bhi kar sakte hain.';
   }
 
-  function onCutMapClick(e) {
-    if (cutState.active !== 'draw') return;
-    cutState.lineLatLngs.push(e.latlng);
+  // Extension preview (dotted "imaginary" line) beyond the first/last drawn point
+  function updateCutGhostLine() {
+    const pts = cutState.lineLatLngs;
+    if (!cutState.ghostLine) {
+      cutState.ghostLine = L.polyline([], { color: '#c96a3b', weight: 1.5, opacity: 0.7, dashArray: '2 8', interactive: false }).addTo(map);
+    }
+    if (pts.length < 2) { cutState.ghostLine.setLatLngs([]); return; }
+    const b = cutState.target && cutState.target.getBounds ? cutState.target.getBounds() : map.getBounds();
+    const span = Math.max(Math.abs(b.getNorth() - b.getSouth()), Math.abs(b.getEast() - b.getWest()), 0.00002) * 3;
+    const ext = (from, to) => {
+      const dx = to.lng - from.lng, dy = to.lat - from.lat;
+      const len = Math.hypot(dx, dy) || 1;
+      return L.latLng(to.lat + (dy / len) * span, to.lng + (dx / len) * span);
+    };
+    const startExt = ext(pts[1], pts[0]);
+    const endExt = ext(pts[pts.length - 2], pts[pts.length - 1]);
+    cutState.ghostLine.setLatLngs([[startExt, pts[0]], [pts[pts.length - 1], endExt]]);
+  }
+
+  function redrawCutPreview() {
     if (!cutState.previewLine) {
       cutState.previewLine = L.polyline(cutState.lineLatLngs, { color: '#c96a3b', weight: 2, dashArray: '4 4', interactive: false }).addTo(map);
     } else {
       cutState.previewLine.setLatLngs(cutState.lineLatLngs);
     }
-    const m = L.circleMarker(e.latlng, { radius: 4, color: '#c96a3b', fillColor: '#fff', fillOpacity: 1, weight: 2, interactive: false }).addTo(map);
+    updateCutGhostLine();
+  }
+
+  function addCutVertexMarker(latlng, index) {
+    const icon = L.divIcon({
+      className: 'cut-vertex-icon',
+      html: '<div style="width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid #c96a3b;box-shadow:0 1px 3px rgba(0,0,0,.4)"></div>',
+      iconSize: [14, 14], iconAnchor: [7, 7]
+    });
+    const m = L.marker(latlng, { icon, draggable: true, autoPan: true, zIndexOffset: 1000 }).addTo(map);
+    m._cutIndex = index;
+    m.on('drag', () => {
+      cutState.lineLatLngs[m._cutIndex] = m.getLatLng();
+      redrawCutPreview();
+    });
+    m.on('click', (ev) => { L.DomEvent.stopPropagation(ev); });
+    m.on('contextmenu', (ev) => {
+      L.DomEvent.stopPropagation(ev);
+      cutState.lineLatLngs.splice(m._cutIndex, 1);
+      map.removeLayer(m);
+      cutState.previewMarkers.splice(m._cutIndex, 1);
+      cutState.previewMarkers.forEach((mk, i) => { mk._cutIndex = i; });
+      redrawCutPreview();
+    });
     cutState.previewMarkers.push(m);
+  }
+
+  function onCutMapClick(e) {
+    if (cutState.active !== 'draw') return;
+    cutState.lineLatLngs.push(e.latlng);
+    redrawCutPreview();
+    addCutVertexMarker(e.latlng, cutState.lineLatLngs.length - 1);
+  }
+
+  // While drawing, clicks landing on any polygon/marker must also add a cut vertex
+  function onLayerClickForCut(e) {
+    if (cutState.active !== 'draw') return;
+    L.DomEvent.stopPropagation(e);
+    if (e.target && e.target.closePopup) e.target.closePopup();
+    onCutMapClick(e);
+  }
+
+  function attachCutDrawHandlers() {
+    drawnItems.eachLayer(l => { if (l.on) l.on('click', onLayerClickForCut); });
+  }
+  function detachCutDrawHandlers() {
+    drawnItems.eachLayer(l => { if (l.off) l.off('click', onLayerClickForCut); });
   }
 
   function attachCutPickHandlers() {
@@ -899,12 +966,13 @@ placeholder="90, 60
     });
   }
 
+
   cutBtn.onclick = function () {
     if (cutState.active) { detachCutPickHandlers(); exitCutMode(); return; }
     cutState.active = 'pick';
     attachCutPickHandlers();
     setCutButtonsUI();
-    alert('Cut mode ON: pehle parcel click karein, phir cut line draw karein — seedhi line ya L-shape (corner/side ka chhota hissa) dono chalti hain. Line boundary tak khud extend ho jati hai.');
+    alert('Cut mode ON: pehle parcel click karein, phir cut line ke points lagayein (parcel ke andar ya bahar kahin bhi). Points drag kar ke adjust ho jate hain, dotted line extension dikhati hai. Phir ✓ Finish cut dabayein.');
   };
 
   cancelCutFab.onclick = function () { detachCutPickHandlers(); exitCutMode(); };
