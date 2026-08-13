@@ -972,7 +972,7 @@ placeholder="90, 60
     cutState.active = 'pick';
     attachCutPickHandlers();
     setCutButtonsUI();
-    alert('Cut mode ON: pehle parcel click karein, phir cut line draw karein — seedhi line ya L-shape (corner/side ka chhota hissa) dono chalti hain. Line boundary tak khud extend ho jati hai.');
+    alert('Cut mode ON: pehle parcel click karein, phir cut line ke points lagayein (parcel ke andar ya bahar kahin bhi). Points drag kar ke adjust ho jate hain, dotted line extension dikhati hai. Phir ✓ Finish cut dabayein.');
   };
 
   cancelCutFab.onclick = function () { detachCutPickHandlers(); exitCutMode(); };
