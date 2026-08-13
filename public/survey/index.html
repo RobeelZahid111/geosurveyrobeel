@@ -823,7 +823,9 @@ placeholder="90, 60
     originalStyle: null,
     lineLatLngs: [],
     previewLine: null,      // L.Polyline
-    previewMarkers: [],     // L.CircleMarker per vertex
+    ghostLine: null,        // dotted extension preview
+    previewMarkers: [],     // draggable vertex markers
+
     undoStack: []           // [{ removed: geojsonFeature, addedIds: [id,...] }]
   };
 
