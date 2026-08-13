@@ -367,6 +367,33 @@ placeholder="90, 60
     rotateControl: false
   }).setView([31.4504, 73.1350], 13);
 
+  // ---- Tap-only vertex placement ----
+  // On touch, a pan/drag can end up as a synthetic click and drop a vertex.
+  // Swallow any click whose pointer moved more than a few pixels.
+  (function suppressDragClicks() {
+    const c = map.getContainer();
+    let sx = 0, sy = 0, moved = false, isTouch = false, t = 0;
+    const MOVE_TOL = 10;
+    c.addEventListener('pointerdown', (e) => {
+      isTouch = e.pointerType !== 'mouse';
+      sx = e.clientX; sy = e.clientY; moved = false;
+    }, true);
+    c.addEventListener('pointermove', (e) => {
+      if (!isTouch) return;
+      if (Math.abs(e.clientX - sx) > MOVE_TOL || Math.abs(e.clientY - sy) > MOVE_TOL) {
+        moved = true; t = Date.now();
+      }
+    }, true);
+    c.addEventListener('click', (e) => {
+      if (isTouch && moved && Date.now() - t < 1200) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    }, true);
+  })();
+
+
+
   function utmZoneFor(lng) { return Math.floor((lng + 180) / 6) + 1; }
   function toUTM(lat, lng) {
     const zone = utmZoneFor(lng);
@@ -907,16 +934,61 @@ placeholder="90, 60
     updateCutGhostLine();
   }
 
+  // Precise pointer-based dragging (Leaflet's own marker drag jumps on touch
+  // when the rotate plugin is active). Keeps the grab offset so the point
+  // follows the finger exactly, 1:1.
+  function enableSmoothDrag(marker, onMove) {
+    const el = marker.getElement();
+    if (!el) return;
+    el.style.touchAction = 'none';
+    let offset = null, pid = null;
+
+    function down(ev) {
+      if (ev.button != null && ev.button > 0) return;
+      pid = ev.pointerId;
+      const p = map.mouseEventToContainerPoint(ev);
+      const mp = map.latLngToContainerPoint(marker.getLatLng());
+      offset = mp.subtract(p);
+      marker._dragging = false;
+      map.dragging.disable();
+      try { el.setPointerCapture(pid); } catch (e) {}
+      ev.preventDefault();
+      ev.stopPropagation();
+    }
+    function move(ev) {
+      if (offset == null || ev.pointerId !== pid) return;
+      marker._dragging = true;
+      const p = map.mouseEventToContainerPoint(ev).add(offset);
+      const ll = map.containerPointToLatLng(p);
+      marker.setLatLng(ll);
+      onMove(ll);
+      ev.preventDefault();
+      ev.stopPropagation();
+    }
+    function up(ev) {
+      if (offset == null) return;
+      offset = null;
+      try { el.releasePointerCapture(pid); } catch (e) {}
+      map.dragging.enable();
+      setTimeout(() => { marker._dragging = false; }, 50);
+      ev.stopPropagation();
+    }
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+  }
+
   function addCutVertexMarker(latlng, index) {
     const icon = L.divIcon({
       className: 'cut-vertex-icon',
-      html: '<div style="width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid #c96a3b;box-shadow:0 1px 3px rgba(0,0,0,.4)"></div>',
-      iconSize: [14, 14], iconAnchor: [7, 7]
+      html: '<div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center"><div style="width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid #c96a3b;box-shadow:0 1px 3px rgba(0,0,0,.4)"></div></div>',
+      iconSize: [22, 22], iconAnchor: [11, 11]
     });
-    const m = L.marker(latlng, { icon, draggable: true, autoPan: true, zIndexOffset: 1000 }).addTo(map);
+    const m = L.marker(latlng, { icon, zIndexOffset: 1000 }).addTo(map);
     m._cutIndex = index;
-    m.on('drag', () => {
-      cutState.lineLatLngs[m._cutIndex] = m.getLatLng();
+    enableSmoothDrag(m, (ll) => {
+      cutState.lineLatLngs[m._cutIndex] = ll;
       redrawCutPreview();
     });
     m.on('click', (ev) => { L.DomEvent.stopPropagation(ev); });
@@ -930,6 +1002,7 @@ placeholder="90, 60
     });
     cutState.previewMarkers.push(m);
   }
+
 
   function onCutMapClick(e) {
     if (cutState.active !== 'draw') return;
