@@ -182,7 +182,53 @@
     #undoFab{ top:auto; bottom:60px; left:12px; }
   }
 </style>
+<script>
+/* Subscription gate: only signed-in users with an active trial or subscription may use the app. */
+(function () {
+  var SB_URL = 'https://dprgxkjqazuzrtjwjzer.supabase.co';
+  var SB_KEY = 'sb_publishable_MlB8GalNzsjBsGN1KVKBPw_P9Bntz0s';
+  var STORAGE_KEY = 'sb-dprgxkjqazuzrtjwjzer-auth-token';
+
+  function block(target) {
+    try { document.documentElement.style.visibility = 'hidden'; } catch (e) {}
+    window.location.replace(target);
+  }
+
+  function readToken() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      return parsed && parsed.access_token ? parsed.access_token : null;
+    } catch (e) { return null; }
+  }
+
+  function entitled(sub) {
+    if (!sub) return false;
+    var now = Date.now();
+    if (sub.status === 'active' && sub.current_period_end && new Date(sub.current_period_end).getTime() > now) return true;
+    if (sub.status === 'trialing' && sub.trial_ends_at && new Date(sub.trial_ends_at).getTime() > now) return true;
+    return false;
+  }
+
+  var token = readToken();
+  if (!token) { block('/auth'); return; }
+
+  fetch(SB_URL + '/rest/v1/subscriptions?select=status,trial_ends_at,current_period_end&limit=1', {
+    headers: { apikey: SB_KEY, Authorization: 'Bearer ' + token }
+  }).then(function (res) {
+    if (res.status === 401 || res.status === 403) { block('/auth'); return null; }
+    return res.json();
+  }).then(function (rows) {
+    if (!rows) return;
+    if (!entitled(rows[0])) block('/subscribe');
+  }).catch(function () {
+    /* offline: allow cached session to keep working */
+  });
+})();
+</script>
 </head>
+
 <body>
 <div id="app">
   <div id="sidebar">
