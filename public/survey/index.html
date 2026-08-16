@@ -331,60 +331,67 @@
 
     <div class="section">
       <h2>Location</h2>
-      <button class="btn" id="locateBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
-        Go to my GPS location
-      </button>
-      <button class="btn" id="gotoLLBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z"/><circle cx="12" cy="9" r="2"/></svg>
-        Go to Lat / Lng
-      </button>
-      <button class="btn" id="searchBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
-        Search place / address
-      </button>
+      <div class="tool-grid">
+        <button class="btn" id="locateBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+          My GPS location
+        </button>
+        <button class="btn" id="gotoLLBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z"/><circle cx="12" cy="9" r="2"/></svg>
+          Go to Lat / Lng
+        </button>
+        <button class="btn" id="searchBtn" style="grid-column:1 / -1;flex-direction:row;align-items:center;min-height:0;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+          Search place / address
+        </button>
+      </div>
     </div>
 
     <div class="section">
       <h2>Tools</h2>
-      <button class="btn" id="addByDimBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12"/><path d="M3 12h18"/></svg>
-        Add polygon by dimensions
-      </button>
-      <button class="btn" id="cutBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.12 8.12L20 20M8.12 15.88L20 4"/></svg>
-        Cut polygon
-      </button>
-      <button class="btn" id="mergeBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h9v9H4zM11 11h9v9h-9z"/><path d="M11 7h6v4M7 11v6h4"/></svg>
-        Merge polygons
-      </button>
-      <button class="btn" id="divideBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16"/><path d="M9 4v16M15 4v16"/></svg>
-        Divide polygon by area
-      </button>
+      <div class="tool-grid">
+        <button class="btn" id="addByDimBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12"/><path d="M3 12h18"/></svg>
+          Polygon by dimensions
+        </button>
+        <button class="btn" id="cutBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.12 8.12L20 20M8.12 15.88L20 4"/></svg>
+          Cut polygon
+        </button>
+        <button class="btn" id="mergeBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h9v9H4zM11 11h9v9h-9z"/><path d="M11 7h6v4M7 11v6h4"/></svg>
+          Merge polygons
+        </button>
+        <button class="btn" id="divideBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16"/><path d="M9 4v16M15 4v16"/></svg>
+          Divide by area
+        </button>
+      </div>
     </div>
 
     <div class="section">
       <h2>Data</h2>
-      <button class="btn accent" id="exportBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
-        Export GeoJSON (combined)
-      </button>
-      <button class="btn accent" id="exportPointsBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M6 8v6M18 8v6M8 6h8M9 16l2-2M15 16l-2-2"/></svg>
-        Export GeoJSON (separate files)
-      </button>
-      <button class="btn" id="importBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 0l-4 4m4-4l4 4M4 3h16"/></svg>
-        Import GeoJSON
-      </button>
+      <div class="tool-grid">
+        <button class="btn accent" id="exportBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+          Export ZIP (all parcels)
+        </button>
+        <button class="btn accent" id="exportPointsBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M6 8v6M18 8v6M8 6h8M9 16l2-2M15 16l-2-2"/></svg>
+          Export separate files
+        </button>
+        <button class="btn" id="importBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 0l-4 4m4-4l4 4M4 3h16"/></svg>
+          Import GeoJSON
+        </button>
+        <button class="btn" id="clearBtn" style="color:#a8532a;border-color:#f0d9c8;background:#fff6f1;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6"/></svg>
+          Clear all
+        </button>
+      </div>
       <input type="file" id="importFile" accept=".json,.geojson,application/geo+json,application/json">
-      <button class="btn" id="clearBtn" style="color:#a8532a;border-color:#f0d9c8;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6"/></svg>
-        Clear all features
-      </button>
     </div>
+
 
     <div class="section" style="border-bottom:none;padding-bottom:6px;">
       <h2>Features (<span id="featureCount">0</span>)</h2>
