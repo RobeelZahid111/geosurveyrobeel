@@ -1,0 +1,1988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Survey Geometry Builder</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2f6b3f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SurveyGeo">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+<link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.2/dist/leaflet-geoman.css" />
+<style>
+  :root{
+    --ink:#1c2b22;
+    --paper:#f6f4ec;
+    --line:#2f6b3f;
+    --line-dark:#1e4a2b;
+    --accent:#c96a3b;
+    --panel:#ffffff;
+    --border:#d9d4c3;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--paper);color:var(--ink);}
+  #app{display:flex;height:100vh;width:100vw;}
+
+  #sidebar{
+    width:320px;min-width:280px;background:var(--panel);border-right:1px solid var(--border);
+    display:flex;flex-direction:column;overflow:hidden;
+  }
+  #sidebar header{
+    padding:16px 18px 12px;border-bottom:1px solid var(--border);
+  }
+  #sidebar header h1{
+    font-size:17px;margin:0 0 4px;color:var(--line-dark);letter-spacing:.2px;
+  }
+  #sidebar header p{margin:0;font-size:12px;color:#6b6a5f;line-height:1.4;}
+  #sidebar header .tap-hint{display:none;}
+
+  .section{padding:14px 18px;border-bottom:1px solid var(--border);}
+  .section h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#8a8873;margin:0 0 10px;font-weight:700;}
+
+  .btn{
+    display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;margin-bottom:8px;
+    border:1px solid var(--border);background:#fbfaf5;border-radius:6px;font-size:13px;color:var(--ink);
+    cursor:pointer;transition:background .15s, border-color .15s;
+  }
+  .btn:hover{background:#f0eee2;border-color:#c3bfa8;}
+  .btn.primary{background:var(--line);color:#fff;border-color:var(--line);font-weight:600;}
+  .btn.primary:hover{background:var(--line-dark);}
+  .btn.accent{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600;}
+  .btn.accent:hover{background:#a8532a;}
+  .btn svg{flex-shrink:0;width:16px;height:16px;}
+
+  #featureList{flex:1;overflow-y:auto;padding:0 0 12px;}
+  .empty-hint{padding:16px 18px;font-size:12.5px;color:#8a8873;line-height:1.5;}
+
+  .feature-item{
+    padding:10px 18px;border-bottom:1px solid #eeecdf;font-size:13px;cursor:pointer;
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+  }
+  .feature-item:hover{background:#f8f7f0;}
+  .feature-item.selected{background:#e7f0e5;border-left:4px solid var(--line);}
+  .feature-item .meta{display:flex;flex-direction:column;gap:2px;min-width:0;}
+  .feature-item .label{font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .feature-item .type{font-size:11px;color:#8a8873;}
+  .feature-item .actions{display:flex;gap:6px;flex-shrink:0;}
+  .icon-btn{
+    border:none;background:transparent;cursor:pointer;color:#8a8873;padding:4px;border-radius:4px;
+    display:flex;align-items:center;
+  }
+  .icon-btn:hover{background:#eeecdf;color:var(--accent);}
+  .icon-btn svg{width:15px;height:15px;pointer-events:none;}
+  .icon-btn *{pointer-events:none;}
+
+  .tag{
+    display:inline-block;font-size:10px;padding:1px 6px;border-radius:10px;background:#e7f0e5;color:var(--line-dark);
+    text-transform:uppercase;letter-spacing:.03em;font-weight:700;
+  }
+  .tag.line{background:#fbe8d9;color:#a8532a;}
+  .tag.point{background:#e5eef5;color:#2c5f8a;}
+  .tag.area{background:#fff3cd;color:#8a6d1a;margin-left:4px;}
+
+  .area-tooltip{
+    background:rgba(28,43,34,.88) !important;color:#fff !important;border:none !important;
+    font-weight:700;font-size:12px;border-radius:4px;box-shadow:none !important;padding:3px 7px;
+  }
+  .area-tooltip::before{display:none;}
+  .length-tooltip{
+    background:rgba(201,106,59,.92) !important;color:#fff !important;border:none !important;
+    font-weight:700;font-size:11px;border-radius:3px;box-shadow:none !important;padding:2px 5px;
+  }
+  .length-tooltip::before{display:none;}
+
+  #mapWrap{flex:1;position:relative;}
+  #map{width:100%;height:100%;}
+
+  .status-bar{
+    position:absolute;bottom:0;left:0;right:0;background:rgba(28,43,34,.92);color:#f6f4ec;
+    font-size:12px;padding:8px 16px;z-index:1000;display:flex;justify-content:space-between;
+    font-family:ui-monospace,monospace;
+  }
+
+  /* Floating action buttons on map (undo / rotate) */
+  .map-fab{
+    position:absolute; z-index:1000; background:#fff; border:1px solid var(--border);
+    border-radius:6px; padding:8px 12px; font-size:13px; font-weight:600; color:var(--line-dark);
+    cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,.15); display:flex; align-items:center; gap:6px;
+  }
+  .map-fab:hover{background:#f0eee2;}
+  #undoFab{ top:80px; left:12px; display:none; }
+  #finishCutFab{ top:130px; left:12px; display:none; background:var(--accent); color:#fff; border-color:var(--accent);}
+  #cancelCutFab{ top:180px; left:12px; display:none; background:#fff; color:#a8532a; border-color:#f0d9c8;}
+  #undoCutFab{ top:230px; left:12px; display:none; background:#fff; color:var(--line-dark); border-color:var(--border);}
+  .cut-target-highlight{ stroke-dasharray: 6 4; }
+  .cut-line-preview{ }
+  #rotateFab{ top:12px; right:12px; }
+  #rotateFab input{ width:60px; padding:2px 4px; border:1px solid var(--border); border-radius:3px; font-size:12px; }
+  #historyFabs{ position:absolute; top:12px; left:60px; z-index:1000; display:flex; gap:6px; }
+  #historyFabs .map-fab{ position:static; padding:6px 10px; }
+  #historyFabs .map-fab[disabled]{ opacity:.4; cursor:not-allowed; }
+
+  #propModal, #dimModal{
+    position:fixed;inset:0;background:rgba(20,25,20,.45);display:none;align-items:center;justify-content:center;z-index:2000;
+  }
+  #propModal.show, #dimModal.show{display:flex;}
+  .modal-box{
+    background:#fff;border-radius:8px;width:340px;max-width:92vw;padding:20px;box-shadow:0 12px 40px rgba(0,0,0,.25);
+    max-height:90vh; overflow-y:auto;
+  }
+  .modal-box h3{margin:0 0 14px;font-size:15px;color:var(--line-dark);}
+  .modal-box label{display:block;font-size:12px;color:#6b6a5f;margin-bottom:4px;margin-top:10px;}
+  .modal-box input, .modal-box select{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:5px;font-size:13px;}
+  .modal-box .row{display:flex;gap:8px;}
+  .modal-box .row > div{flex:1;}
+  .modal-actions{display:flex;gap:8px;margin-top:16px;}
+  .modal-actions .btn{margin-bottom:0;}
+  .hint{font-size:11px;color:#8a8873;margin-top:4px;}
+
+  input[type=file]{display:none;}
+
+  .leaflet-draw-toolbar a{background-color:#fff !important;}
+
+  #sidebarHandle{display:none;}
+
+  @media (max-width: 768px) {
+    #app{ display:block; }
+    #mapWrap{ position:fixed; inset:0; width:100%; height:100%; }
+
+    #sidebar{
+      position:fixed; left:0; right:0; bottom:0; top:auto;
+      width:100%; min-width:0; height:85vh; max-height:85vh;
+      border-right:none; border-radius:16px 16px 0 0;
+      box-shadow:0 -6px 24px rgba(0,0,0,.2);
+      transform:translateY(calc(100% - 54px));
+      transition:transform .28s ease;
+      z-index:1500;
+      display:block; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    }
+    #sidebar.open{ transform:translateY(0); }
+
+    #sidebarHandle{ position:sticky; top:0; background:var(--panel); z-index:2; }
+
+    #featureList{ flex:none; overflow:visible; max-height:none; }
+
+    #sidebarHandle{
+      display:flex; align-items:center; justify-content:center;
+      padding:8px 0 4px; cursor:pointer; flex-shrink:0;
+    }
+    #sidebarHandle .bar{ width:40px; height:4px; border-radius:3px; background:var(--border); }
+
+    #sidebar header{ padding:0 18px 12px; cursor:pointer; }
+    #sidebar header .tap-hint{ display:block; font-size:11px; color:var(--accent); font-weight:600; }
+
+    .status-bar{ padding-bottom:calc(8px + env(safe-area-inset-bottom)); }
+
+    #undoFab{ top:auto; bottom:60px; left:12px; }
+  }
+  /* ---------- Refreshed interface (v13) ---------- */
+  :root{
+    --paper:#eef1ec;
+    --panel:#ffffff;
+    --border:#e2e5dd;
+    --line:#2f6b3f;
+    --line-dark:#1e4a2b;
+    --accent:#c96a3b;
+  }
+  body{font-family:'Segoe UI Variable','Segoe UI',system-ui,-apple-system,sans-serif;}
+  #sidebar{box-shadow:1px 0 0 var(--border);}
+  #sidebar header{
+    background:linear-gradient(135deg,var(--line-dark),var(--line));
+    color:#f2f7f1;border-bottom:none;padding:18px 18px 16px;
+  }
+  #sidebar header h1{color:#fff;font-size:16px;font-weight:700;}
+  #sidebar header p{color:rgba(255,255,255,.78);}
+  #sidebar header .tap-hint{color:#ffd9b0;}
+
+  .section{padding:14px 16px;border-bottom:1px solid var(--border);}
+  .section h2{color:#7d8878;}
+
+  .btn{
+    border-radius:10px;padding:10px 12px;background:#f7f8f5;border-color:var(--border);
+    font-weight:500;box-shadow:0 1px 0 rgba(0,0,0,.02);
+  }
+  .btn:hover{background:#eef1ea;border-color:#cfd6c9;}
+  .btn.primary{box-shadow:0 2px 8px rgba(47,107,63,.25);}
+  .btn.accent{box-shadow:0 2px 8px rgba(201,106,59,.25);}
+
+  .tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .tool-grid .btn{
+    margin-bottom:0;flex-direction:column;align-items:flex-start;gap:6px;
+    font-size:12.5px;line-height:1.25;min-height:74px;justify-content:center;
+  }
+  .tool-grid .btn svg{width:18px;height:18px;color:var(--line);}
+  .tool-grid .btn.accent svg{color:#fff;}
+
+  /* Account card */
+  #accountCard{
+    margin:12px 16px 0;padding:12px 14px;border:1px solid var(--border);border-radius:12px;
+    background:#fbfcfa;
+  }
+  #accountCard .acc-top{display:flex;align-items:center;gap:10px;}
+  #accountCard .avatar{
+    width:36px;height:36px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+    background:var(--line);color:#fff;font-weight:700;font-size:14px;text-transform:uppercase;
+  }
+  #accountCard .acc-mail{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #accountCard .acc-sub{font-size:11px;color:#7d8878;}
+  .plan-pill{
+    display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+    padding:2px 8px;border-radius:999px;background:#e7f0e5;color:var(--line-dark);
+  }
+  .plan-pill.trial{background:#fff3cd;color:#8a6d1a;}
+  .plan-pill.off{background:#fbe0d5;color:#a8532a;}
+  .acc-rows{margin-top:10px;display:grid;gap:6px;font-size:12px;color:#5f6a5c;}
+  .acc-rows div{display:flex;justify-content:space-between;gap:8px;}
+  .acc-rows span:last-child{font-weight:600;color:var(--ink);}
+  .acc-actions{display:flex;gap:8px;margin-top:12px;}
+  .acc-actions .btn{margin-bottom:0;justify-content:center;font-size:12px;padding:8px 10px;}
+  .acc-actions .btn.signout{color:#a8532a;border-color:#f0d9c8;background:#fff6f1;}
+
+  @media (max-width:768px){
+    #sidebar{border-radius:18px 18px 0 0;}
+    #accountCard{margin:10px 14px 0;}
+  }
+</style>
+
+<script>
+/* Subscription gate: only signed-in users with an active trial or subscription may use the app. */
+(function () {
+  var SB_URL = 'https://dprgxkjqazuzrtjwjzer.supabase.co';
+  var SB_KEY = 'sb_publishable_MlB8GalNzsjBsGN1KVKBPw_P9Bntz0s';
+  var STORAGE_KEY = 'sb-dprgxkjqazuzrtjwjzer-auth-token';
+
+  function block(target) {
+    try { document.documentElement.style.visibility = 'hidden'; } catch (e) {}
+    console.log('gate would block ->',target);
+  }
+
+  function readToken() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      return parsed && parsed.access_token ? parsed.access_token : null;
+    } catch (e) { return null; }
+  }
+
+  function entitled(sub) {
+    if (!sub) return false;
+    var now = Date.now();
+    if (sub.status === 'active' && sub.current_period_end && new Date(sub.current_period_end).getTime() > now) return true;
+    if (sub.status === 'trialing' && sub.trial_ends_at && new Date(sub.trial_ends_at).getTime() > now) return true;
+    return false;
+  }
+
+  var token = readToken();
+  if (!token) { block('/auth'); return; }
+
+  fetch(SB_URL + '/rest/v1/subscriptions?select=status,trial_ends_at,current_period_end&limit=1', {
+    headers: { apikey: SB_KEY, Authorization: 'Bearer ' + token }
+  }).then(function (res) {
+    if (res.status === 401 || res.status === 403) { block('/auth'); return null; }
+    return res.json();
+  }).then(function (rows) {
+    if (!rows) return;
+    if (!entitled(rows[0])) block('/subscribe');
+  }).catch(function () {
+    /* offline: allow cached session to keep working */
+  });
+})();
+</script>
+</head>
+
+<body>
+<div id="app">
+  <div id="sidebar">
+    <div id="sidebarHandle"><div class="bar"></div></div>
+    <header>
+      <h1>Survey Geometry Builder</h1>
+      <p>Draw points, lines &amp; polygons — edit vertices, cut polygons, add by dimensions, export as GeoJSON.</p>
+      <p class="tap-hint">Tap to expand / collapse</p>
+    </header>
+
+    <div id="accountCard">
+      <div class="acc-top">
+        <div class="avatar" id="accAvatar">?</div>
+        <div style="min-width:0;flex:1;">
+          <div class="acc-mail" id="accEmail">Loading account…</div>
+          <div class="acc-sub" id="accName">Signed in</div>
+        </div>
+        <span class="plan-pill" id="accPlanPill">…</span>
+      </div>
+      <div class="acc-rows">
+        <div><span>Plan</span><span id="accPlan">Monthly — PKR 3,000</span></div>
+        <div><span>Status</span><span id="accStatus">—</span></div>
+        <div><span>Renews / ends</span><span id="accRenew">—</span></div>
+      </div>
+      <div class="acc-actions">
+        <button class="btn" id="manageSubBtn">Subscription</button>
+        <button class="btn signout" id="signOutBtn">Sign out</button>
+      </div>
+    </div>
+
+
+
+    <div class="section">
+      <h2>Location</h2>
+      <div class="tool-grid">
+        <button class="btn" id="locateBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+          My GPS location
+        </button>
+        <button class="btn" id="gotoLLBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z"/><circle cx="12" cy="9" r="2"/></svg>
+          Go to Lat / Lng
+        </button>
+        <button class="btn" id="searchBtn" style="grid-column:1 / -1;flex-direction:row;align-items:center;min-height:0;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+          Search place / address
+        </button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Tools</h2>
+      <div class="tool-grid">
+        <button class="btn" id="addByDimBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12"/><path d="M3 12h18"/></svg>
+          Polygon by dimensions
+        </button>
+        <button class="btn" id="cutBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.12 8.12L20 20M8.12 15.88L20 4"/></svg>
+          Cut polygon
+        </button>
+        <button class="btn" id="mergeBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h9v9H4zM11 11h9v9h-9z"/><path d="M11 7h6v4M7 11v6h4"/></svg>
+          Merge polygons
+        </button>
+        <button class="btn" id="divideBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16"/><path d="M9 4v16M15 4v16"/></svg>
+          Divide by area
+        </button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Data</h2>
+      <div class="tool-grid">
+        <button class="btn accent" id="exportBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+          Export ZIP (all parcels)
+        </button>
+        <button class="btn accent" id="exportPointsBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M6 8v6M18 8v6M8 6h8M9 16l2-2M15 16l-2-2"/></svg>
+          Export separate files
+        </button>
+        <button class="btn" id="importBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 0l-4 4m4-4l4 4M4 3h16"/></svg>
+          Import GeoJSON
+        </button>
+        <button class="btn" id="clearBtn" style="color:#a8532a;border-color:#f0d9c8;background:#fff6f1;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6"/></svg>
+          Clear all
+        </button>
+      </div>
+      <input type="file" id="importFile" accept=".json,.geojson,application/geo+json,application/json">
+    </div>
+
+
+    <div class="section" style="border-bottom:none;padding-bottom:6px;">
+      <h2>Features (<span id="featureCount">0</span>)</h2>
+    </div>
+    <div id="featureList">
+      <div class="empty-hint">No features yet. Use the draw tools on the top-left of the map (point, line, polygon) to start marking parcels or boundary points. Your work is saved automatically.</div>
+    </div>
+  </div>
+
+  <div id="mapWrap">
+    <div id="map"></div>
+    <button class="map-fab" id="undoFab" title="Undo last point (Ctrl+Z)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-15-6.7L3 13"/></svg>
+      Undo
+    </button>
+    <button class="map-fab" id="finishCutFab" title="Finish cut line">
+      ✓ Finish Cut
+    </button>
+    <button class="map-fab" id="cancelCutFab" title="Cancel cut">
+      ✕ Cancel Cut
+    </button>
+    <button class="map-fab" id="undoCutFab" title="Undo last cut">
+      ↺ Undo Cut
+    </button>
+    <div id="historyFabs">
+      <button class="map-fab" id="histUndoFab" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
+      <button class="map-fab" id="histRedoFab" title="Redo (Ctrl+Y)" disabled>↷ Redo</button>
+    </div>
+    <div class="map-fab" id="rotateFab" title="Map rotation (degrees, 0 = North up)">
+      <span>🧭</span>
+      <input type="number" id="rotateInput" value="0" min="-180" max="180" step="5">
+      <button id="resetRotBtn" style="border:none;background:transparent;cursor:pointer;color:var(--accent);font-weight:700;">↻</button>
+    </div>
+    <div class="status-bar">
+      <span id="coordsStatus">Move mouse or tap map to see live coordinates</span>
+      <span id="countStatus">0 features</span>
+    </div>
+  </div>
+</div>
+
+<div id="propModal">
+  <div class="modal-box">
+    <h3>Feature details</h3>
+    <label>Name / Property ID</label>
+    <input type="text" id="propName" placeholder="e.g. Parcel-014 or Owner name">
+    <label>Notes (optional)</label>
+    <input type="text" id="propNotes" placeholder="e.g. CNIC, Tehsil, remarks">
+    <div class="modal-actions">
+      <button class="btn" id="propCancel" style="margin:0;">Cancel</button>
+      <button class="btn primary" id="propSave" style="margin:0;">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="dimModal">
+  <div class="modal-box">
+    <h3>Add polygon by dimensions</h3>
+    <label>Shape</label>
+    <select id="dimShape">
+      <option value="rect">Rectangle (width × height)</option>
+      <option value="traverse">Traverse (bearings + distances)</option>
+    </select>
+
+    <div id="dimRectFields">
+      <div class="row">
+        <div>
+          <label>Width (ft)</label>
+          <input type="number" id="dimW" value="60" min="1" step="0.1">
+        </div>
+        <div>
+          <label>Height (ft)</label>
+          <input type="number" id="dimH" value="90" min="1" step="0.1">
+        </div>
+      </div>
+      <label>Rotation (degrees, 0 = North)</label>
+      <input type="number" id="dimRot" value="0" step="1">
+      <p class="hint">Rectangle will be placed at the center of the current map view.</p>
+    </div>
+
+    <div id="dimTraverseFields" style="display:none;">
+      <label>Start latitude</label>
+      <input type="number" id="dimStartLat" step="0.000001" placeholder="e.g. 31.4504">
+      <label>Start longitude</label>
+      <input type="number" id="dimStartLng" step="0.000001" placeholder="e.g. 73.1350">
+      <label>Sides — one per line: <b>bearing_deg, distance_ft</b></label>
+      <textarea id="dimTraverse" rows="6" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:5px;font-family:ui-monospace,monospace;font-size:12px;"
+placeholder="90, 60
+180, 90
+270, 60
+0, 90"></textarea>
+      <p class="hint">Bearing measured clockwise from North. Polygon closes automatically.</p>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" id="dimCancel" style="margin:0;">Cancel</button>
+      <button class="btn primary" id="dimCreate" style="margin:0;">Create polygon</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.2/dist/leaflet-geoman.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js"></script>
+<script src="https://unpkg.com/@turf/turf@7.1.0/turf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+  const STORAGE_KEY = 'survey_geo_builder_v1';
+
+  const map = L.map('map', {
+    zoomControl: true,
+    rotate: true,
+    touchRotate: true,
+    bearing: 0,
+    rotateControl: false
+  }).setView([31.4504, 73.1350], 13);
+
+  // ---- Tap-only vertex placement ----
+  // On touch, a pan/drag can end up as a synthetic click and drop a vertex.
+  // Swallow any click whose pointer moved more than a few pixels.
+  (function suppressDragClicks() {
+    const c = map.getContainer();
+    let sx = 0, sy = 0, moved = false, isTouch = false, t = 0;
+    const MOVE_TOL = 10;
+    c.addEventListener('pointerdown', (e) => {
+      isTouch = e.pointerType !== 'mouse';
+      sx = e.clientX; sy = e.clientY; moved = false;
+    }, true);
+    c.addEventListener('pointermove', (e) => {
+      if (!isTouch) return;
+      if (Math.abs(e.clientX - sx) > MOVE_TOL || Math.abs(e.clientY - sy) > MOVE_TOL) {
+        moved = true; t = Date.now();
+      }
+    }, true);
+    c.addEventListener('click', (e) => {
+      if (isTouch && moved && Date.now() - t < 1200) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    }, true);
+  })();
+
+
+
+  function utmZoneFor(lng) { return Math.floor((lng + 180) / 6) + 1; }
+  function toUTM(lat, lng) {
+    const zone = utmZoneFor(lng);
+    const epsg = 32600 + zone;
+    const def = `+proj=utm +zone=${zone} +datum=WGS84 +units=m +no_defs`;
+    const [x, y] = proj4('EPSG:4326', def, [lng, lat]);
+    return { x, y, zone, epsg };
+  }
+
+  const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors', maxZoom: 20
+  });
+  const satellite = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+    attribution: '&copy; Google', maxZoom: 21, maxNativeZoom: 20,
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+  });
+  const satelliteOnly = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+    attribution: '&copy; Google', maxZoom: 21, maxNativeZoom: 20,
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+  });
+
+  L.control.layers({ "Street": street, "Google Hybrid": satellite, "Google Satellite": satelliteOnly }).addTo(map);
+  satellite.addTo(map);
+
+  const drawnItems = new L.FeatureGroup();
+  map.addLayer(drawnItems);
+
+  // Geoman uses drawnItems as its layer group so cut results end up there too
+  if (map.pm) {
+    map.pm.setGlobalOptions({ layerGroup: drawnItems, snappable: true, snapDistance: 20 });
+  }
+
+  const drawControl = new L.Control.Draw({
+    edit: { featureGroup: drawnItems, remove: true },
+    draw: {
+      polygon: {
+        allowIntersection: false, showArea: true, showLength: true,
+        metric: false, feet: true,
+        shapeOptions: { color: '#2f6b3f' }
+      },
+      polyline: {
+        showLength: true, metric: false, feet: true,
+        shapeOptions: { color: '#c96a3b' }
+      },
+      rectangle: false,
+      circle: false,
+      circlemarker: false,
+      marker: true
+    }
+  });
+  map.addControl(drawControl);
+
+  const measurementLayer = new L.LayerGroup();
+  map.addLayer(measurementLayer);
+
+  let idCounter = 1;
+  let pendingLayer = null;
+
+  function layerTypeLabel(layer) {
+    if (layer instanceof L.Marker) return 'point';
+    if (layer instanceof L.Polygon) return 'polygon';
+    if (layer instanceof L.Polyline) return 'line';
+    return 'feature';
+  }
+
+  function computeKanalMarlaSqft(layer) {
+    if (!(layer instanceof L.Polygon)) return null;
+    let latlngs = layer.getLatLngs();
+    while (Array.isArray(latlngs[0]) && Array.isArray(latlngs[0][0])) latlngs = latlngs[0];
+    if (Array.isArray(latlngs[0])) latlngs = latlngs[0];
+    if (!latlngs.length || !(latlngs[0] instanceof L.LatLng)) return null;
+
+    const MARLA_SQFT = 272.25;
+    const KANAL_SQFT = MARLA_SQFT * 20;
+
+    const areaSqM = L.GeometryUtil.geodesicArea(latlngs);
+    const areaSqFt = Math.abs(areaSqM) * 10.7639;
+
+    const kanal = Math.floor(areaSqFt / KANAL_SQFT);
+    let rem = areaSqFt - kanal * KANAL_SQFT;
+    const marla = Math.floor(rem / MARLA_SQFT);
+    rem = rem - marla * MARLA_SQFT;
+    const sqft = Math.round(rem);
+
+    return { kanal, marla, sqft, label: `${kanal}-${marla}-${sqft}`, areaSqFt: Math.round(areaSqFt), areaSqM: Math.round(areaSqM) };
+  }
+
+  // ---------- Persistence (localStorage) ----------
+  function saveState() {
+    try {
+      const snap = currentSnapshot();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
+      pushHistory();
+    } catch (e) { console.warn('save failed', e); }
+  }
+
+  function currentSnapshot() {
+    const layers = [];
+    drawnItems.eachLayer(l => layers.push(l));
+    const features = layers.map(layer => {
+      const gj = layer.toGeoJSON();
+      gj.properties = { ...(layer.feature_props || {}) };
+      return gj;
+    });
+    return { type: 'FeatureCollection', features, idCounter };
+  }
+
+  function applySnapshot(data) {
+    drawnItems.clearLayers();
+    selectedLayer = null;
+    if (!data) return;
+    if (data.idCounter) idCounter = data.idCounter;
+    if (!data.features || !data.features.length) return;
+    const gjLayer = L.geoJSON(data, {
+      pointToLayer: (f, latlng) => L.marker(latlng),
+      style: () => ({ color: '#2f6b3f' })
+    });
+    gjLayer.eachLayer(l => {
+      l.feature_props = (l.feature && l.feature.properties) ? { ...l.feature.properties } : { id: idCounter++ };
+      if (!l.feature_props.id) l.feature_props.id = idCounter++;
+      if (l instanceof L.Marker) {
+        l.options.draggable = true;
+        l.dragging.enable();
+        l.on('dragend', refreshList);
+      }
+      drawnItems.addLayer(l);
+    });
+  }
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      applySnapshot(JSON.parse(raw));
+    } catch (e) { console.warn('load failed', e); }
+  }
+
+  // ---------- Undo / Redo history ----------
+  const history = { stack: [], redo: [], suppress: false, max: 100 };
+  function updateHistoryButtons() {
+    document.getElementById('histUndoFab').disabled = history.stack.length <= 1;
+    document.getElementById('histRedoFab').disabled = history.redo.length === 0;
+  }
+  function pushHistory() {
+    if (history.suppress) return;
+    const snap = JSON.stringify(currentSnapshot());
+    if (history.stack.length && history.stack[history.stack.length - 1] === snap) return;
+    history.stack.push(snap);
+    if (history.stack.length > history.max) history.stack.shift();
+    history.redo.length = 0;
+    updateHistoryButtons();
+  }
+  function doUndo() {
+    if (history.stack.length <= 1) return;
+    const cur = history.stack.pop();
+    history.redo.push(cur);
+    const prev = history.stack[history.stack.length - 1];
+    history.suppress = true;
+    applySnapshot(JSON.parse(prev));
+    history.suppress = false;
+    refreshList();
+    updateHistoryButtons();
+  }
+  function doRedo() {
+    if (!history.redo.length) return;
+    const next = history.redo.pop();
+    history.stack.push(next);
+    history.suppress = true;
+    applySnapshot(JSON.parse(next));
+    history.suppress = false;
+    refreshList();
+    updateHistoryButtons();
+  }
+  document.getElementById('histUndoFab').onclick = doUndo;
+  document.getElementById('histRedoFab').onclick = doRedo;
+  window.addEventListener('keydown', (e) => {
+    const isMod = e.ctrlKey || e.metaKey;
+    if (!isMod) return;
+    const key = e.key.toLowerCase();
+    if (key === 'z' && !e.shiftKey) { e.preventDefault(); doUndo(); }
+    else if ((key === 'y') || (key === 'z' && e.shiftKey)) { e.preventDefault(); doRedo(); }
+  });
+
+  function refreshList() {
+    updateMeasurements();
+    const listEl = document.getElementById('featureList');
+    const layers = [];
+    drawnItems.eachLayer(l => layers.push(l));
+    document.getElementById('featureCount').textContent = layers.length;
+    document.getElementById('countStatus').textContent = layers.length + ' feature' + (layers.length === 1 ? '' : 's');
+
+    if (layers.length === 0) {
+      listEl.innerHTML = '<div class="empty-hint">No features yet. Use the draw tools on the top-left of the map (point, line, polygon) to start marking parcels or boundary points. Your work is saved automatically.</div>';
+      saveState();
+      return;
+    }
+    listEl.innerHTML = '';
+    layers.forEach(layer => {
+      const props = layer.feature_props || {};
+      const type = layerTypeLabel(layer);
+      const area = computeKanalMarlaSqft(layer);
+      const item = document.createElement('div');
+      item.className = 'feature-item';
+      if (layer === selectedLayer) item.classList.add('selected');
+      item.innerHTML = `
+        <div class="meta">
+          <span class="label">${props.name ? escapeHtml(props.name) : 'Unnamed ' + type}</span>
+          <span class="type"><span class="tag ${type}">${type}</span>${area ? ' <span class="tag area">' + area.label + '</span>' : ''}</span>
+        </div>
+        <div class="actions">
+          <button class="icon-btn" data-action="zoom" title="Zoom to feature">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+          </button>
+          <button class="icon-btn" data-action="export" title="Export this feature only">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+          </button>
+          <button class="icon-btn" data-action="edit" title="Edit name/notes">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+          </button>
+          <button class="icon-btn" data-action="delete" title="Delete feature">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6"/></svg>
+          </button>
+        </div>`;
+      item.addEventListener('click', (e) => {
+        if (e.target.closest('.icon-btn')) return;
+        selectLayer(layer, { zoom: false, fromList: true });
+      });
+      item.querySelector('[data-action="zoom"]').addEventListener('click', (e) => {
+        e.stopPropagation(); e.preventDefault();
+        selectLayer(layer, { zoom: true, fromList: true });
+      });
+      item.querySelector('[data-action="export"]').addEventListener('click', (e) => {
+        e.stopPropagation(); e.preventDefault();
+        try { exportSingleLayer(layer); }
+        catch (err) { alert('Download failed: ' + err.message); }
+      });
+      item.querySelector('[data-action="edit"]').onclick = (e) => {
+        e.stopPropagation();
+        openPropsModal(layer);
+      };
+      item.querySelector('[data-action="delete"]').onclick = (e) => {
+        e.stopPropagation();
+        if (selectedLayer === layer) selectedLayer = null;
+        drawnItems.removeLayer(layer);
+        refreshList();
+      };
+      listEl.appendChild(item);
+      layer._listItem = item;
+
+      if (area) {
+        const tooltipText = `${area.label}  (K-M-Sqft)`;
+        if (layer.getTooltip()) layer.setTooltipContent(tooltipText);
+        else layer.bindTooltip(tooltipText, { permanent: true, direction: 'center', className: 'area-tooltip' });
+      }
+      // Click layer on map -> select in list
+      if (!layer._selectBound) {
+        layer.on('click', (ev) => {
+          L.DomEvent.stopPropagation(ev);
+          selectLayer(layer, { zoom: false, fromList: false });
+        });
+        layer._selectBound = true;
+      }
+    });
+    saveState();
+  }
+
+  let selectedLayer = null;
+  function selectLayer(layer, { zoom = false, fromList = false } = {}) {
+    // reset previous style
+    if (selectedLayer && selectedLayer !== layer && selectedLayer.setStyle) {
+      selectedLayer.setStyle({ color: selectedLayer._origColor || '#2f6b3f', weight: 3 });
+    }
+    selectedLayer = layer;
+    if (layer.setStyle) {
+      if (!layer._origColor) layer._origColor = (layer.options && layer.options.color) || '#2f6b3f';
+      layer.setStyle({ color: '#c96a3b', weight: 5 });
+    }
+    // Update list highlight
+    document.querySelectorAll('.feature-item.selected').forEach(el => el.classList.remove('selected'));
+    if (layer._listItem) {
+      layer._listItem.classList.add('selected');
+      if (!fromList) layer._listItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+    if (zoom) {
+      if (layer.getBounds) map.fitBounds(layer.getBounds(), { maxZoom: 18 });
+      else if (layer.getLatLng) map.setView(layer.getLatLng(), 18);
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function promptForFilename(defaultBase) {
+    const suggestion = defaultBase + '_' + new Date().toISOString().slice(0, 10);
+    const name = prompt('File ka naam likhein:', suggestion);
+    return (name && name.trim()) ? name.trim() : suggestion;
+  }
+  function sanitizeFilename(name) {
+    return name.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '_').slice(0, 100) || 'export';
+  }
+
+  function updateMeasurements() {
+    measurementLayer.clearLayers();
+    drawnItems.eachLayer(layer => {
+      if (!(layer instanceof L.Polyline)) return;
+      let latlngs = layer.getLatLngs();
+      while (Array.isArray(latlngs[0]) && Array.isArray(latlngs[0][0])) latlngs = latlngs[0];
+      if (Array.isArray(latlngs[0]) && !(latlngs[0] instanceof L.LatLng)) latlngs = latlngs[0];
+      if (!latlngs || latlngs.length < 2) return;
+
+      const isClosed = layer instanceof L.Polygon;
+      const segCount = isClosed ? latlngs.length : latlngs.length - 1;
+
+      for (let i = 0; i < segCount; i++) {
+        const a = latlngs[i];
+        const b = latlngs[(i + 1) % latlngs.length];
+        if (!a || !b) continue;
+        const meters = map.distance(a, b);
+        const feet = meters * 3.28084;
+        const mid = L.latLng((a.lat + b.lat) / 2, (a.lng + b.lng) / 2);
+        L.circleMarker(mid, { radius: 0, opacity: 0, fillOpacity: 0, interactive: false })
+          .bindTooltip(Math.round(feet) + ' ft', { permanent: true, direction: 'center', className: 'length-tooltip' })
+          .addTo(measurementLayer);
+      }
+    });
+  }
+
+  function openPropsModal(layer) {
+    pendingLayer = layer;
+    const props = layer.feature_props || {};
+    document.getElementById('propName').value = props.name || '';
+    document.getElementById('propNotes').value = props.notes || '';
+    document.getElementById('propModal').classList.add('show');
+  }
+
+  document.getElementById('propCancel').onclick = () => {
+    document.getElementById('propModal').classList.remove('show');
+    pendingLayer = null;
+  };
+  document.getElementById('propSave').onclick = () => {
+    if (pendingLayer) {
+      pendingLayer.feature_props = pendingLayer.feature_props || {};
+      pendingLayer.feature_props.name = document.getElementById('propName').value.trim();
+      pendingLayer.feature_props.notes = document.getElementById('propNotes').value.trim();
+    }
+    document.getElementById('propModal').classList.remove('show');
+    pendingLayer = null;
+    refreshList();
+  };
+
+  // ---------- Draw events ----------
+  map.on(L.Draw.Event.CREATED, function (e) {
+    const layer = e.layer;
+    layer.feature_props = { id: idCounter++ };
+    if (layer instanceof L.Marker) {
+      layer.options.draggable = true;
+      layer.dragging.enable();
+      layer.on('dragend', refreshList);
+    }
+    drawnItems.addLayer(layer);
+    refreshList();
+    openPropsModal(layer);
+  });
+
+  map.on(L.Draw.Event.EDITED, refreshList);
+  map.on(L.Draw.Event.DELETED, refreshList);
+  map.on('draw:editvertex', refreshList);
+  map.on('draw:editmove', refreshList);
+  map.on('draw:editresize', refreshList);
+
+  // Geoman cut event — refresh after cut
+  map.on('pm:cut', (e) => {
+    // e.layer is the new cut result; e.originalLayer was removed
+    if (e.layer) {
+      e.layer.feature_props = { id: idCounter++, name: 'Cut result' };
+      drawnItems.addLayer(e.layer);
+    }
+    // Auto-turn off cut mode after a successful cut
+    if (map.pm && map.pm.globalCutModeEnabled()) {
+      map.pm.disableGlobalCutMode();
+      document.getElementById('cutBtn').classList.remove('primary');
+      document.getElementById('finishCutFab').style.display = 'none';
+    }
+    refreshList();
+  });
+
+  // ---------- Undo button ----------
+  const undoFab = document.getElementById('undoFab');
+  map.on('draw:drawstart', () => { undoFab.style.display = 'flex'; });
+  map.on('draw:drawstop', () => { undoFab.style.display = 'none'; });
+
+  function undoLastPoint() {
+    const tb = drawControl._toolbars && drawControl._toolbars.draw;
+    const active = tb && tb._activeMode && tb._activeMode.handler;
+    if (active && typeof active.deleteLastVertex === 'function') {
+      active.deleteLastVertex();
+    }
+  }
+  undoFab.onclick = undoLastPoint;
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      if (undoFab.style.display !== 'none') { e.preventDefault(); undoLastPoint(); }
+    }
+  });
+
+  map.on('mousemove', function (e) {
+    document.getElementById('coordsStatus').textContent =
+      `Lat: ${e.latlng.lat.toFixed(6)}, Lng: ${e.latlng.lng.toFixed(6)}`;
+  });
+  map.on('click', function (e) {
+    document.getElementById('coordsStatus').textContent =
+      `Lat: ${e.latlng.lat.toFixed(6)}, Lng: ${e.latlng.lng.toFixed(6)}`;
+  });
+
+  // ---------- Rotation ----------
+  const rotateInput = document.getElementById('rotateInput');
+  rotateInput.addEventListener('change', () => {
+    const deg = parseFloat(rotateInput.value) || 0;
+    if (typeof map.setBearing === 'function') map.setBearing(deg);
+  });
+  document.getElementById('resetRotBtn').onclick = () => {
+    rotateInput.value = 0;
+    if (typeof map.setBearing === 'function') map.setBearing(0);
+  };
+  map.on('rotate', () => {
+    if (typeof map.getBearing === 'function') {
+      rotateInput.value = Math.round(map.getBearing());
+    }
+  });
+
+  // ---------- Go to Lat/Lng ----------
+  document.getElementById('gotoLLBtn').onclick = function () {
+    const input = prompt('Lat, Lng likhein (comma se alag):', '31.4504, 73.1350');
+    if (!input) return;
+    const parts = input.split(/[,\s]+/).map(parseFloat).filter(v => isFinite(v));
+    if (parts.length < 2) { alert('Format: lat, lng (e.g. 31.4504, 73.1350)'); return; }
+    const [lat, lng] = parts;
+    map.setView([lat, lng], 18);
+    L.circleMarker([lat, lng], { radius: 7, color: '#c96a3b', fillColor: '#c96a3b', fillOpacity: .8 })
+      .addTo(map).bindPopup(`Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}`).openPopup();
+    document.getElementById('coordsStatus').textContent = `Pin: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  };
+
+  // ---------- Cut polygon (ArcGIS-style line cut with undo) ----------
+  const finishCutFab = document.getElementById('finishCutFab');
+  const cancelCutFab = document.getElementById('cancelCutFab');
+  const undoCutFab = document.getElementById('undoCutFab');
+  const cutBtn = document.getElementById('cutBtn');
+
+  const cutState = {
+    active: false,          // false | 'pick' | 'draw'
+    target: null,           // L.Polygon being cut
+    originalStyle: null,
+    lineLatLngs: [],
+    previewLine: null,      // L.Polyline
+    ghostLine: null,        // dotted extension preview
+    previewMarkers: [],     // draggable vertex markers
+
+    undoStack: []           // [{ removed: geojsonFeature, addedIds: [id,...] }]
+  };
+
+  function setCutButtonsUI() {
+    finishCutFab.style.display = (cutState.active === 'draw') ? 'flex' : 'none';
+    cancelCutFab.style.display = cutState.active ? 'flex' : 'none';
+    undoCutFab.style.display = cutState.undoStack.length ? 'flex' : 'none';
+    cutBtn.classList.toggle('primary', !!cutState.active);
+  }
+
+  function clearCutPreview() {
+    if (cutState.previewLine) { map.removeLayer(cutState.previewLine); cutState.previewLine = null; }
+    if (cutState.ghostLine) { map.removeLayer(cutState.ghostLine); cutState.ghostLine = null; }
+    cutState.previewMarkers.forEach(m => map.removeLayer(m));
+    cutState.previewMarkers = [];
+    cutState.lineLatLngs = [];
+  }
+
+  function exitCutMode() {
+    if (cutState.target && cutState.originalStyle && cutState.target.setStyle) {
+      cutState.target.setStyle(cutState.originalStyle);
+    }
+    cutState.target = null;
+    cutState.originalStyle = null;
+    cutState.active = false;
+    clearCutPreview();
+    detachCutDrawHandlers();
+    map.off('click', onCutMapClick);
+    map.getContainer().style.cursor = '';
+    setCutButtonsUI();
+  }
+
+  function highlightTarget(layer) {
+    cutState.target = layer;
+    if (layer.setStyle) {
+      cutState.originalStyle = { color: layer.options.color, weight: layer.options.weight, dashArray: layer.options.dashArray };
+      layer.setStyle({ color: '#c96a3b', weight: 3, dashArray: '6 4' });
+    }
+  }
+
+  function onPolygonPickForCut(e) {
+    L.DomEvent.stopPropagation(e);
+    if (cutState.active !== 'pick') return;
+    highlightTarget(e.target);
+    detachCutPickHandlers();
+    cutState.active = 'draw';
+    attachCutDrawHandlers();
+    map.getContainer().style.cursor = 'crosshair';
+    setCutButtonsUI();
+    document.getElementById('coordsStatus').textContent =
+      'Cut line draw karein: points parcel ke andar/bahar kahin bhi lagayein. Points ko drag kar ke adjust bhi kar sakte hain.';
+  }
+
+  // Extension preview (dotted "imaginary" line) beyond the first/last drawn point
+  function updateCutGhostLine() {
+    const pts = cutState.lineLatLngs;
+    if (!cutState.ghostLine) {
+      cutState.ghostLine = L.polyline([], { color: '#c96a3b', weight: 1.5, opacity: 0.7, dashArray: '2 8', interactive: false }).addTo(map);
+    }
+    if (pts.length < 2) { cutState.ghostLine.setLatLngs([]); return; }
+    const b = cutState.target && cutState.target.getBounds ? cutState.target.getBounds() : map.getBounds();
+    const span = Math.max(Math.abs(b.getNorth() - b.getSouth()), Math.abs(b.getEast() - b.getWest()), 0.00002) * 3;
+    const ext = (from, to) => {
+      const dx = to.lng - from.lng, dy = to.lat - from.lat;
+      const len = Math.hypot(dx, dy) || 1;
+      return L.latLng(to.lat + (dy / len) * span, to.lng + (dx / len) * span);
+    };
+    const startExt = ext(pts[1], pts[0]);
+    const endExt = ext(pts[pts.length - 2], pts[pts.length - 1]);
+    cutState.ghostLine.setLatLngs([[startExt, pts[0]], [pts[pts.length - 1], endExt]]);
+  }
+
+  function redrawCutPreview() {
+    if (!cutState.previewLine) {
+      cutState.previewLine = L.polyline(cutState.lineLatLngs, { color: '#c96a3b', weight: 2, dashArray: '4 4', interactive: false }).addTo(map);
+    } else {
+      cutState.previewLine.setLatLngs(cutState.lineLatLngs);
+    }
+    updateCutGhostLine();
+  }
+
+  // Precise pointer-based dragging (Leaflet's own marker drag jumps on touch
+  // when the rotate plugin is active). Keeps the grab offset so the point
+  // follows the finger exactly, 1:1.
+  function enableSmoothDrag(marker, onMove) {
+    const el = marker.getElement();
+    if (!el) return;
+    el.style.touchAction = 'none';
+    let offset = null, pid = null;
+
+    function down(ev) {
+      if (ev.button != null && ev.button > 0) return;
+      pid = ev.pointerId;
+      const p = map.mouseEventToContainerPoint(ev);
+      const mp = map.latLngToContainerPoint(marker.getLatLng());
+      offset = mp.subtract(p);
+      marker._dragging = false;
+      map.dragging.disable();
+      try { el.setPointerCapture(pid); } catch (e) {}
+      ev.preventDefault();
+      ev.stopPropagation();
+    }
+    function move(ev) {
+      if (offset == null || ev.pointerId !== pid) return;
+      marker._dragging = true;
+      const p = map.mouseEventToContainerPoint(ev).add(offset);
+      const ll = map.containerPointToLatLng(p);
+      marker.setLatLng(ll);
+      onMove(ll);
+      ev.preventDefault();
+      ev.stopPropagation();
+    }
+    function up(ev) {
+      if (offset == null) return;
+      offset = null;
+      try { el.releasePointerCapture(pid); } catch (e) {}
+      map.dragging.enable();
+      setTimeout(() => { marker._dragging = false; }, 50);
+      ev.stopPropagation();
+    }
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+  }
+
+  function addCutVertexMarker(latlng, index) {
+    const icon = L.divIcon({
+      className: 'cut-vertex-icon',
+      html: '<div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center"><div style="width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid #c96a3b;box-shadow:0 1px 3px rgba(0,0,0,.4)"></div></div>',
+      iconSize: [22, 22], iconAnchor: [11, 11]
+    });
+    const m = L.marker(latlng, { icon, zIndexOffset: 1000 }).addTo(map);
+    m._cutIndex = index;
+    enableSmoothDrag(m, (ll) => {
+      cutState.lineLatLngs[m._cutIndex] = ll;
+      redrawCutPreview();
+    });
+    m.on('click', (ev) => { L.DomEvent.stopPropagation(ev); });
+    m.on('contextmenu', (ev) => {
+      L.DomEvent.stopPropagation(ev);
+      cutState.lineLatLngs.splice(m._cutIndex, 1);
+      map.removeLayer(m);
+      cutState.previewMarkers.splice(m._cutIndex, 1);
+      cutState.previewMarkers.forEach((mk, i) => { mk._cutIndex = i; });
+      redrawCutPreview();
+    });
+    cutState.previewMarkers.push(m);
+  }
+
+
+  function onCutMapClick(e) {
+    if (cutState.active !== 'draw') return;
+    cutState.lineLatLngs.push(e.latlng);
+    redrawCutPreview();
+    addCutVertexMarker(e.latlng, cutState.lineLatLngs.length - 1);
+  }
+
+  // While drawing, clicks landing on any polygon/marker must also add a cut vertex
+  function onLayerClickForCut(e) {
+    if (cutState.active !== 'draw') return;
+    L.DomEvent.stopPropagation(e);
+    if (e.target && e.target.closePopup) e.target.closePopup();
+    onCutMapClick(e);
+  }
+
+  function attachCutDrawHandlers() {
+    drawnItems.eachLayer(l => { if (l.on) l.on('click', onLayerClickForCut); });
+  }
+  function detachCutDrawHandlers() {
+    drawnItems.eachLayer(l => { if (l.off) l.off('click', onLayerClickForCut); });
+  }
+
+  function attachCutPickHandlers() {
+    drawnItems.eachLayer(l => {
+      if (l instanceof L.Polygon) {
+        l.on('click', onPolygonPickForCut);
+      }
+    });
+  }
+  function detachCutPickHandlers() {
+    drawnItems.eachLayer(l => {
+      if (l instanceof L.Polygon) l.off('click', onPolygonPickForCut);
+    });
+  }
+
+
+  cutBtn.onclick = function () {
+    if (cutState.active) { detachCutPickHandlers(); exitCutMode(); return; }
+    cutState.active = 'pick';
+    attachCutPickHandlers();
+    setCutButtonsUI();
+    alert('Cut mode ON: pehle parcel click karein, phir cut line ke points lagayein (parcel ke andar ya bahar kahin bhi). Points drag kar ke adjust ho jate hain, dotted line extension dikhati hai. Phir ✓ Finish cut dabayein.');
+  };
+
+  cancelCutFab.onclick = function () { detachCutPickHandlers(); exitCutMode(); };
+
+  // Split a polygon into exactly 2 parcels using the sketched cut line.
+  // The sketched line is extended at both ends, so users can draw through the parcel
+  // like ArcGIS without needing to start/end perfectly outside the boundary.
+  function splitPolygonByLine(polyLatLngs, lineLatLngs) {
+    if (!window.turf) { alert('Turf.js load nahi hua.'); return null; }
+
+    const EPS = 1e-10;
+    const sameCoord = (a, b, eps = EPS) => Math.abs(a[0] - b[0]) <= eps && Math.abs(a[1] - b[1]) <= eps;
+    const dist2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2;
+
+    let openRing = polyLatLngs.map(p => [p.lng, p.lat]);
+    if (openRing.length > 2 && sameCoord(openRing[0], openRing[openRing.length - 1])) openRing.pop();
+    openRing = cleanOpenCoords(openRing);
+    if (openRing.length < 3) return null;
+    const closedRing = [...openRing, openRing[0]];
+
+    let sketchLine = lineLatLngs.map(p => [p.lng, p.lat]);
+    sketchLine = cleanOpenCoords(sketchLine);
+    if (sketchLine.length < 2) return null;
+    const line = extendLineBeyondPolygon(sketchLine, openRing);
+    if (line.length < 2) return null;
+
+    const polyGJ = turf.polygon([closedRing]);
+    const ringPath = [...openRing, openRing[0]];
+
+    // Clip the extended sketch at its first and last parcel-boundary crossings.
+    // All user-drawn intermediate vertices are preserved, so bent/L-shaped cuts
+    // behave like ArcGIS rather than being replaced by a straight chord.
+    const cutPath = clipSketchToBoundary(line, polyGJ);
+    if (!cutPath || cutPath.length < 2) return null;
+
+    const A = { coord: cutPath[0], onRing: locateOnPath(ringPath, cutPath[0]) };
+    const B = { coord: cutPath[cutPath.length - 1], onRing: locateOnPath(ringPath, cutPath[cutPath.length - 1]) };
+    if (!A.onRing || !B.onRing) return null;
+    if (dist2(A.coord, B.coord) <= EPS * EPS) return null;
+
+
+    const boundaryAtoB = buildBoundaryPath(A, B, openRing);
+    const boundaryBtoA = buildBoundaryPath(B, A, openRing);
+    if (boundaryAtoB.length < 2 || boundaryBtoA.length < 2) return null;
+
+    const ring1 = finalizePart([...boundaryAtoB, ...cutPath.slice(0, -1).reverse()]);
+    const ring2 = finalizePart([...boundaryBtoA, ...cutPath.slice(1)]);
+    if (!ring1 || !ring2) return null;
+
+    const area1 = turf.area(turf.polygon([[...ring1, ring1[0]]]));
+    const area2 = turf.area(turf.polygon([[...ring2, ring2[0]]]));
+    const originalArea = turf.area(polyGJ);
+    if (area1 < 0.5 || area2 < 0.5) return null;
+    if (Math.abs((area1 + area2) - originalArea) / originalArea > 0.02) return null;
+
+    const toLL = arr => arr.map(c => L.latLng(c[1], c[0]));
+    return [toLL(ring1), toLL(ring2)];
+
+    function cleanOpenCoords(coords) {
+      const cleaned = [];
+      coords.forEach(c => {
+        if (!cleaned.length || !sameCoord(cleaned[cleaned.length - 1], c)) cleaned.push(c);
+      });
+      if (cleaned.length > 2 && sameCoord(cleaned[0], cleaned[cleaned.length - 1])) cleaned.pop();
+      return cleaned;
+    }
+
+    function extendLineBeyondPolygon(coords, polygonCoords) {
+      const xs = polygonCoords.map(c => c[0]);
+      const ys = polygonCoords.map(c => c[1]);
+      const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys), 0.00001);
+      const extension = span * 20;
+      const out = coords.map(c => [c[0], c[1]]);
+      const first = out[0], second = out[1], beforeLast = out[out.length - 2], last = out[out.length - 1];
+      const startDx = first[0] - second[0], startDy = first[1] - second[1];
+      const endDx = last[0] - beforeLast[0], endDy = last[1] - beforeLast[1];
+      const startLen = Math.hypot(startDx, startDy);
+      const endLen = Math.hypot(endDx, endDy);
+      if (startLen > EPS) out[0] = [first[0] + (startDx / startLen) * extension, first[1] + (startDy / startLen) * extension];
+      if (endLen > EPS) out[out.length - 1] = [last[0] + (endDx / endLen) * extension, last[1] + (endDy / endLen) * extension];
+      return out;
+    }
+
+    function cumulativeMeasures(path) {
+      const measures = [0];
+      for (let i = 1; i < path.length; i++) measures[i] = measures[i - 1] + Math.sqrt(dist2(path[i - 1], path[i]));
+      return measures;
+    }
+
+    function locateOnPath(path, pt, measures = null) {
+      let best = null;
+      for (let i = 0; i < path.length - 1; i++) {
+        const a = path[i], b = path[i + 1];
+        const dx = b[0] - a[0], dy = b[1] - a[1];
+        const len2 = dx * dx + dy * dy;
+        if (len2 === 0) continue;
+        let t = ((pt[0] - a[0]) * dx + (pt[1] - a[1]) * dy) / len2;
+        if (t < -1e-7 || t > 1 + 1e-7) continue;
+        t = Math.max(0, Math.min(1, t));
+        const projected = [a[0] + t * dx, a[1] + t * dy];
+        const d = dist2(projected, pt);
+        const measure = measures ? measures[i] + Math.sqrt(len2) * t : i + t;
+        if (!best || d < best.d) best = { i, t, d, measure };
+      }
+      return best;
+    }
+
+    function pointSegDist2(p, a, b) {
+      const dx = b[0] - a[0], dy = b[1] - a[1];
+      const len2 = dx * dx + dy * dy;
+      if (len2 === 0) return dist2(p, a);
+      let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2;
+      t = Math.max(0, Math.min(1, t));
+      return dist2(p, [a[0] + t * dx, a[1] + t * dy]);
+    }
+
+    function pathMidpoint(coords) {
+      const m = cumulativeMeasures(coords);
+      const half = m[m.length - 1] / 2;
+      for (let i = 1; i < coords.length; i++) {
+        if (m[i] >= half) {
+          const seg = m[i] - m[i - 1] || 1;
+          const t = (half - m[i - 1]) / seg;
+          return [coords[i - 1][0] + (coords[i][0] - coords[i - 1][0]) * t,
+                  coords[i - 1][1] + (coords[i][1] - coords[i - 1][1]) * t];
+        }
+      }
+      return coords[0];
+    }
+
+    function clipSketchToBoundary(lineCoords, poly) {
+      const measures = cumulativeMeasures(lineCoords);
+      let hits;
+      try {
+        hits = turf.lineIntersect(turf.lineString(lineCoords), turf.polygonToLine(poly));
+      } catch (e) { return null; }
+      const crossings = hits.features.map(f => {
+        const coord = f.geometry.coordinates;
+        const pos = locateOnPath(lineCoords, coord, measures);
+        return pos ? { coord, pos } : null;
+      }).filter(Boolean).sort((a, b) => a.pos.measure - b.pos.measure)
+        .filter((p, i, arr) => i === 0 || dist2(p.coord, arr[i - 1].coord) > EPS * EPS);
+      if (crossings.length < 2) return null;
+
+      const first = crossings[0];
+      const last = crossings[crossings.length - 1];
+      const clipped = [first.coord];
+      for (let i = first.pos.i + 1; i <= last.pos.i; i++) clipped.push(lineCoords[i]);
+      clipped.push(last.coord);
+      const result = cleanOpenCoords(clipped);
+      if (result.length < 2) return null;
+
+      // A valid ArcGIS-style cut must remain inside the parcel between crossings.
+      for (let i = 0; i < result.length - 1; i++) {
+        const mid = [(result[i][0] + result[i + 1][0]) / 2, (result[i][1] + result[i + 1][1]) / 2];
+        if (!turf.booleanPointInPolygon(turf.point(mid), poly, { ignoreBoundary: false })) return null;
+      }
+      return result;
+    }
+
+
+    function buildBoundaryPath(start, end, ring) {
+      const n = ring.length;
+      const path = [start.coord];
+      const startPos = start.onRing.i + start.onRing.t;
+      const endPos = end.onRing.i + end.onRing.t;
+      const endIsAheadOnSameLoop = endPos > startPos + EPS;
+      if (endIsAheadOnSameLoop) {
+        for (let idx = start.onRing.i + 1; idx <= end.onRing.i; idx++) path.push(ring[idx % n]);
+      } else {
+        for (let step = 1; step <= n; step++) {
+          const idx = (start.onRing.i + step) % n;
+          path.push(ring[idx]);
+          if (idx === end.onRing.i) break;
+        }
+      }
+      path.push(end.coord);
+      return cleanOpenCoords(path);
+    }
+
+    function finalizePart(coords) {
+      coords = cleanOpenCoords(coords);
+      if (coords.length > 2 && sameCoord(coords[0], coords[coords.length - 1])) coords.pop();
+      if (coords.length < 3) return null;
+      try {
+        const area = turf.area(turf.polygon([[...coords, coords[0]]]));
+        if (!isFinite(area) || area <= 0.5) return null;
+      } catch (e) { return null; }
+      return coords;
+    }
+  }
+
+  function performCut() {
+    if (!cutState.target || cutState.lineLatLngs.length < 2) {
+      alert('Cut line mein kam se kam 2 point chahiye.');
+      return;
+    }
+    let latlngs = cutState.target.getLatLngs();
+    while (Array.isArray(latlngs[0]) && Array.isArray(latlngs[0][0])) latlngs = latlngs[0];
+    if (Array.isArray(latlngs[0])) latlngs = latlngs[0];
+    const parts = splitPolygonByLine(latlngs, cutState.lineLatLngs);
+    if (!parts || parts.length !== 2) {
+      alert('Cut line se 2 parcels nahi ban sake. Line ko parcel ke ek side se doosri side tak clear draw karein.');
+      return;
+    }
+    // snapshot original for undo
+    const origGeoJSON = cutState.target.toGeoJSON();
+    origGeoJSON.properties = { ...(cutState.target.feature_props || {}) };
+
+    const origProps = cutState.target.feature_props || {};
+    // remove original
+    drawnItems.removeLayer(cutState.target);
+    cutState.target = null; cutState.originalStyle = null;
+
+    const addedIds = [];
+    parts.forEach((ring, i) => {
+      const p = L.polygon(ring, { color: '#2f6b3f' });
+      const id = idCounter++;
+      p.feature_props = { id, name: (origProps.name ? origProps.name + ' — part ' + (i + 1) : 'Cut part ' + (i + 1)) };
+      drawnItems.addLayer(p);
+      addedIds.push(id);
+    });
+
+    cutState.undoStack.push({ removed: origGeoJSON, addedIds });
+    if (cutState.undoStack.length > 20) cutState.undoStack.shift();
+
+    exitCutMode();
+    refreshList();
+  }
+
+  finishCutFab.onclick = performCut;
+
+  undoCutFab.onclick = function () {
+    const entry = cutState.undoStack.pop();
+    if (!entry) return;
+    // remove the pieces we added
+    const toRemove = [];
+    drawnItems.eachLayer(l => {
+      const id = l.feature_props && l.feature_props.id;
+      if (entry.addedIds.includes(id)) toRemove.push(l);
+    });
+    toRemove.forEach(l => drawnItems.removeLayer(l));
+    // restore original
+    const gj = entry.removed;
+    const restored = L.geoJSON(gj, { style: () => ({ color: '#2f6b3f' }) });
+    restored.eachLayer(l => {
+      l.feature_props = { ...(gj.properties || { id: idCounter++ }) };
+      drawnItems.addLayer(l);
+    });
+    setCutButtonsUI();
+    refreshList();
+  };
+
+  // Enable click-to-add-vertex while drawing cut line
+  map.on('click', (e) => { onCutMapClick(e); });
+
+  // ---------- Merge touching polygons ----------
+  const mergeBtn = document.getElementById('mergeBtn');
+  const mergeState = { active: false, layers: new Set() };
+
+  function paintMergeSelection() {
+    drawnItems.eachLayer(layer => {
+      if (!(layer instanceof L.Polygon) || !layer.setStyle) return;
+      if (mergeState.layers.has(layer)) layer.setStyle({ color: '#c96a3b', weight: 5, dashArray: '6 4' });
+      else if (mergeState.active) layer.setStyle({ color: layer._origColor || '#2f6b3f', weight: 3, dashArray: null });
+    });
+    mergeBtn.innerHTML = mergeState.active
+      ? `✓ Finish merge (${mergeState.layers.size})`
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h9v9H4zM11 11h9v9h-9z"/><path d="M11 7h6v4M7 11v6h4"/></svg> Merge polygons';
+    mergeBtn.classList.toggle('primary', mergeState.active);
+  }
+
+  function onPolygonPickForMerge(e) {
+    if (!mergeState.active) return;
+    L.DomEvent.stopPropagation(e);
+    const layer = e.target;
+    if (mergeState.layers.has(layer)) mergeState.layers.delete(layer);
+    else mergeState.layers.add(layer);
+    paintMergeSelection();
+    document.getElementById('coordsStatus').textContent = `${mergeState.layers.size} parcels selected for merge`;
+  }
+
+  function stopMergeMode() {
+    drawnItems.eachLayer(layer => {
+      if (layer instanceof L.Polygon) {
+        layer.off('click', onPolygonPickForMerge);
+        if (layer.setStyle) layer.setStyle({ color: layer._origColor || '#2f6b3f', weight: 3, dashArray: null });
+      }
+    });
+    mergeState.active = false;
+    mergeState.layers.clear();
+    paintMergeSelection();
+  }
+
+  function finishMerge() {
+    const layers = [...mergeState.layers];
+    if (layers.length < 2) { alert('Merge ke liye kam az kam 2 polygons select karein.'); return; }
+    let merged;
+    try {
+      const features = layers.map(layer => layer.toGeoJSON());
+      merged = turf.union(turf.featureCollection(features));
+    } catch (e) {
+      alert('Merge nahi ho saka. Sirf aapas mein touching ya overlapping parcels select karein.');
+      return;
+    }
+    if (!merged || merged.geometry.type !== 'Polygon') {
+      alert('Selected parcels aapas mein connected nahi hain. Sirf touching parcels merge ho sakte hain.');
+      return;
+    }
+    const firstProps = { ...(layers[0].feature_props || {}) };
+    layers.forEach(layer => drawnItems.removeLayer(layer));
+    const mergedGroup = L.geoJSON(merged, { style: () => ({ color: '#2f6b3f' }) });
+    mergedGroup.eachLayer(layer => {
+      layer.feature_props = { ...firstProps, id: idCounter++, name: firstProps.name ? firstProps.name + ' — merged' : 'Merged parcel' };
+      drawnItems.addLayer(layer);
+      selectedLayer = layer;
+    });
+    stopMergeMode();
+    refreshList();
+  }
+
+  mergeBtn.onclick = function () {
+    if (cutState.active) { alert('Pehle Cut mode cancel karein.'); return; }
+    if (mergeState.active) { finishMerge(); return; }
+    mergeState.active = true;
+    if (selectedLayer instanceof L.Polygon) mergeState.layers.add(selectedLayer);
+    drawnItems.eachLayer(layer => {
+      if (layer instanceof L.Polygon) layer.on('click', onPolygonPickForMerge);
+    });
+    paintMergeSelection();
+    document.getElementById('coordsStatus').textContent = 'Merge: 2 ya zyada touching parcels tap karein, phir Finish merge dabayein.';
+  };
+
+  // ---------- Add polygon by dimensions ----------
+  const dimModal = document.getElementById('dimModal');
+  const dimShape = document.getElementById('dimShape');
+  document.getElementById('addByDimBtn').onclick = () => {
+    const c = map.getCenter();
+    document.getElementById('dimStartLat').value = c.lat.toFixed(6);
+    document.getElementById('dimStartLng').value = c.lng.toFixed(6);
+    dimModal.classList.add('show');
+  };
+  document.getElementById('dimCancel').onclick = () => dimModal.classList.remove('show');
+  dimShape.onchange = () => {
+    document.getElementById('dimRectFields').style.display = dimShape.value === 'rect' ? 'block' : 'none';
+    document.getElementById('dimTraverseFields').style.display = dimShape.value === 'traverse' ? 'block' : 'none';
+  };
+
+  // Move a lat/lng by (distance_m, bearing_deg) using spherical earth approximation
+  function offsetLatLng(lat, lng, distanceM, bearingDeg) {
+    const R = 6378137;
+    const br = bearingDeg * Math.PI / 180;
+    const lat1 = lat * Math.PI / 180;
+    const lng1 = lng * Math.PI / 180;
+    const dR = distanceM / R;
+    const lat2 = Math.asin(Math.sin(lat1) * Math.cos(dR) + Math.cos(lat1) * Math.sin(dR) * Math.cos(br));
+    const lng2 = lng1 + Math.atan2(Math.sin(br) * Math.sin(dR) * Math.cos(lat1), Math.cos(dR) - Math.sin(lat1) * Math.sin(lat2));
+    return [lat2 * 180 / Math.PI, ((lng2 * 180 / Math.PI) + 540) % 360 - 180];
+  }
+
+  document.getElementById('dimCreate').onclick = () => {
+    let latlngs = [];
+    if (dimShape.value === 'rect') {
+      const wFt = parseFloat(document.getElementById('dimW').value);
+      const hFt = parseFloat(document.getElementById('dimH').value);
+      const rot = parseFloat(document.getElementById('dimRot').value) || 0;
+      if (!(wFt > 0) || !(hFt > 0)) { alert('Enter valid width and height.'); return; }
+      const w = wFt / 3.28084, h = hFt / 3.28084;
+      const c = map.getCenter();
+      // 4 corners relative to center in meters (east=x, north=y), then rotate
+      const corners = [ [-w/2, -h/2], [w/2, -h/2], [w/2, h/2], [-w/2, h/2] ];
+      const cosR = Math.cos(rot * Math.PI / 180), sinR = Math.sin(rot * Math.PI / 180);
+      const mPerDegLat = 111320;
+      const mPerDegLng = 111320 * Math.cos(c.lat * Math.PI / 180);
+      latlngs = corners.map(([x, y]) => {
+        const xr = x * cosR - y * sinR;
+        const yr = x * sinR + y * cosR;
+        return [c.lat + yr / mPerDegLat, c.lng + xr / mPerDegLng];
+      });
+    } else {
+      const lat0 = parseFloat(document.getElementById('dimStartLat').value);
+      const lng0 = parseFloat(document.getElementById('dimStartLng').value);
+      if (!isFinite(lat0) || !isFinite(lng0)) { alert('Enter valid start coordinates.'); return; }
+      const lines = document.getElementById('dimTraverse').value.split('\n').map(s => s.trim()).filter(Boolean);
+      if (lines.length < 3) { alert('At least 3 sides required.'); return; }
+      let cur = [lat0, lng0];
+      latlngs.push(cur);
+      for (const ln of lines) {
+        const parts = ln.split(/[,\s]+/).map(parseFloat);
+        if (parts.length < 2 || !isFinite(parts[0]) || !isFinite(parts[1])) { alert('Invalid line: ' + ln); return; }
+        const bearing = parts[0], distFt = parts[1];
+        cur = offsetLatLng(cur[0], cur[1], distFt / 3.28084, bearing);
+        latlngs.push(cur);
+      }
+      // Drop last if user re-typed the closing side to first point
+      if (latlngs.length > 3) {
+        const a = latlngs[0], b = latlngs[latlngs.length - 1];
+        if (Math.abs(a[0] - b[0]) < 1e-7 && Math.abs(a[1] - b[1]) < 1e-7) latlngs.pop();
+      }
+    }
+    const poly = L.polygon(latlngs, { color: '#2f6b3f' });
+    poly.feature_props = { id: idCounter++ };
+    drawnItems.addLayer(poly);
+    dimModal.classList.remove('show');
+    map.fitBounds(poly.getBounds(), { maxZoom: 19 });
+    refreshList();
+    openPropsModal(poly);
+  };
+
+  // ---------- Export single feature (Points format) ----------
+  function buildPointsFeatureCollection(layer, idx) {
+    let latlngs = [];
+    let isPolygon = false;
+    if (layer instanceof L.Marker) {
+      latlngs = [layer.getLatLng()];
+    } else if (layer.getLatLngs) {
+      isPolygon = layer instanceof L.Polygon;
+      let raw = layer.getLatLngs();
+      while (Array.isArray(raw[0])) raw = raw[0];
+      latlngs = raw;
+    }
+    const eq = (a, b) => Math.abs(a.lat - b.lat) < 1e-9 && Math.abs(a.lng - b.lng) < 1e-9;
+    latlngs = latlngs.filter((ll, i, arr) => i === 0 || !eq(ll, arr[i - 1]));
+    if (isPolygon && latlngs.length > 1 && eq(latlngs[0], latlngs[latlngs.length - 1])) latlngs.pop();
+
+    const features = [];
+    let fid = 1;
+    latlngs.forEach(ll => {
+      features.push({
+        type: 'Feature',
+        id: fid,
+        geometry: { type: 'Point', coordinates: [ll.lng, ll.lat] },
+        properties: { FID: fid, ID: idx }
+      });
+      fid++;
+    });
+    return { type: 'FeatureCollection', features };
+  }
+
+  function pointsBlobFor(layer, idx) {
+    const fc = buildPointsFeatureCollection(layer, idx);
+    const jsonString = JSON.stringify(fc, null, 2).replace(/"([^"]+)":/g, '"$1" :');
+    return new Blob([jsonString], { type: 'application/geo+json' });
+  }
+
+  function parcelFilename(layer, idx) {
+    return (layer.feature_props && layer.feature_props.name)
+      ? sanitizeFilename(layer.feature_props.name)
+      : ('parcel_' + idx);
+  }
+
+  function exportSingleLayer(layer) {
+    let idx = 1, i = 0;
+    drawnItems.eachLayer(l => { i++; if (l === layer) idx = i; });
+    const blob = pointsBlobFor(layer, idx);
+    downloadBlob(blob, parcelFilename(layer, idx) + '.geojson');
+  }
+
+  // ---------- Divide polygon by target area ----------
+  document.getElementById('divideBtn').onclick = function () {
+    if (!selectedLayer || !(selectedLayer instanceof L.Polygon)) {
+      alert('Pehle koi polygon (parcel) select karein (list mein tap karein ya map par click karein).');
+      return;
+    }
+    const area = computeKanalMarlaSqft(selectedLayer);
+    if (!area) { alert('Area calculate nahi ho saka.'); return; }
+
+    const totalSqft = area.areaSqFt;
+    const input = prompt(
+      `Is parcel ka total area: ${area.label} (${totalSqft} sqft).\n\nHar sub-parcel ka area kya hoga?\n\nExamples:\n  5000 sqft\n  1 kanal\n  5 marla\n  0-5-100  (kanal-marla-sqft)\n\nLikhein:`,
+      '5 marla'
+    );
+    if (!input) return;
+
+    const targetSqft = parseAreaInput(input);
+    if (!targetSqft || targetSqft <= 0) { alert('Invalid area format.'); return; }
+    if (targetSqft >= totalSqft) { alert('Target area parcel se chota hona chahiye.'); return; }
+
+    const nParts = Math.round(totalSqft / targetSqft);
+    if (nParts < 2) { alert('Sirf 1 part banega — target area kam karein.'); return; }
+    if (nParts > 200) { alert('200 se zyada divisions allowed nahi.'); return; }
+
+    const subs = divideQuadIntoStrips(selectedLayer, nParts);
+    if (!subs || !subs.length) { alert('Divide nahi ho saka. Sirf 4-corner (rectangular) parcels supported hain.'); return; }
+
+    // remove original
+    drawnItems.removeLayer(selectedLayer);
+    const parentName = (selectedLayer.feature_props && selectedLayer.feature_props.name) || ('Parcel-' + (selectedLayer.feature_props && selectedLayer.feature_props.id));
+    selectedLayer = null;
+    subs.forEach((coords, i) => {
+      const p = L.polygon(coords, { color: '#2f6b3f' });
+      p.feature_props = { id: idCounter++, name: `${parentName}-${i + 1}` };
+      drawnItems.addLayer(p);
+    });
+    refreshList();
+    alert(`${nParts} parts ban gaye (har ek ~${Math.round(totalSqft / nParts)} sqft).`);
+  };
+
+  function parseAreaInput(s) {
+    s = s.trim().toLowerCase();
+    const MARLA = 272.25, KANAL = MARLA * 20;
+    // K-M-S format
+    const kms = s.match(/^(\d+)-(\d+)-(\d+(?:\.\d+)?)$/);
+    if (kms) return (+kms[1]) * KANAL + (+kms[2]) * MARLA + (+kms[3]);
+    const num = parseFloat(s);
+    if (!isFinite(num)) return null;
+    if (s.includes('kanal')) return num * KANAL;
+    if (s.includes('marla')) return num * MARLA;
+    if (s.includes('sqm') || s.includes('sq m') || s.includes('m2')) return num * 10.7639;
+    return num; // default sqft
+  }
+
+  // Divide a 4-corner polygon into N strips along the longer pair of sides
+  function divideQuadIntoStrips(polygon, n) {
+    let latlngs = polygon.getLatLngs();
+    while (Array.isArray(latlngs[0]) && Array.isArray(latlngs[0][0])) latlngs = latlngs[0];
+    if (Array.isArray(latlngs[0]) && !(latlngs[0] instanceof L.LatLng)) latlngs = latlngs[0];
+    if (!latlngs || latlngs.length !== 4) return null;
+
+    const [A, B, C, D] = latlngs; // corners in order
+    // Determine which pair of opposite sides is longer: AB & DC, or BC & AD
+    const dAB = map.distance(A, B), dBC = map.distance(B, C);
+    const results = [];
+    for (let i = 0; i < n; i++) {
+      const t1 = i / n, t2 = (i + 1) / n;
+      let p1, p2, p3, p4;
+      if (dAB >= dBC) {
+        // split along AB (top) and DC (bottom)
+        p1 = interp(A, B, t1);
+        p2 = interp(A, B, t2);
+        p3 = interp(D, C, t2);
+        p4 = interp(D, C, t1);
+      } else {
+        // split along BC (right) and AD (left)
+        p1 = interp(A, D, t1);
+        p2 = interp(B, C, t1);
+        p3 = interp(B, C, t2);
+        p4 = interp(A, D, t2);
+      }
+      results.push([p1, p2, p3, p4]);
+    }
+    return results;
+  }
+  function interp(a, b, t) {
+    return L.latLng(a.lat + (b.lat - a.lat) * t, a.lng + (b.lng - a.lng) * t);
+  }
+
+  // ---------- Location ----------
+  document.getElementById('locateBtn').onclick = function () {
+    if (!navigator.geolocation) { alert('Geolocation not supported.'); return; }
+    document.getElementById('coordsStatus').textContent = 'Locating...';
+    navigator.geolocation.getCurrentPosition(pos => {
+      const { latitude, longitude } = pos.coords;
+      map.setView([latitude, longitude], 18);
+      L.circleMarker([latitude, longitude], { radius: 6, color: '#2c5f8a', fillColor: '#2c5f8a', fillOpacity: .8 })
+        .addTo(map).bindPopup('Your GPS location').openPopup();
+      document.getElementById('coordsStatus').textContent = `GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+    }, err => {
+      alert('Could not get location: ' + err.message);
+    }, { enableHighAccuracy: true });
+  };
+
+  document.getElementById('searchBtn').onclick = async function () {
+    const q = prompt('Search for a place, address, or Tehsil:');
+    if (!q) return;
+    document.getElementById('coordsStatus').textContent = 'Searching...';
+    try {
+      const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q));
+      const data = await res.json();
+      if (data && data.length) {
+        const { lat, lon, display_name } = data[0];
+        map.setView([parseFloat(lat), parseFloat(lon)], 16);
+        document.getElementById('coordsStatus').textContent = display_name;
+      } else { alert('No results found for: ' + q); }
+    } catch (err) { alert('Search failed. Check internet connection.'); }
+  };
+
+  // ---------- Export (combined) — ZIP of per-parcel Points files ----------
+  document.getElementById('exportBtn').onclick = async function () {
+    const layers = [];
+    drawnItems.eachLayer(l => layers.push(l));
+    if (layers.length === 0) { alert('No features to export.'); return; }
+    if (typeof JSZip === 'undefined') { alert('ZIP library load nahi ho saki. Internet check karein.'); return; }
+
+    const baseName = sanitizeFilename(promptForFilename('survey_points'));
+    const zip = new JSZip();
+    const used = {};
+    layers.forEach((layer, i) => {
+      const idx = i + 1;
+      let name = parcelFilename(layer, idx);
+      if (used[name] != null) { used[name]++; name = name + '_' + used[name]; } else { used[name] = 1; }
+      const fc = buildPointsFeatureCollection(layer, idx);
+      const jsonString = JSON.stringify(fc, null, 2).replace(/"([^"]+)":/g, '"$1" :');
+      zip.file(name + '.geojson', jsonString);
+    });
+    const blob = await zip.generateAsync({ type: 'blob' });
+    downloadBlob(blob, baseName + '.zip');
+  };
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // ---------- Export GeoJSON — separate file per feature ----------
+  document.getElementById('exportPointsBtn').onclick = async function () {
+    const layers = [];
+    drawnItems.eachLayer(l => layers.push(l));
+    if (layers.length === 0) { alert('No features to export.'); return; }
+
+    const baseName = sanitizeFilename(promptForFilename('survey_points'));
+    for (let i = 0; i < layers.length; i++) {
+      const idx = i + 1;
+      const blob = pointsBlobFor(layers[i], idx);
+      downloadBlob(blob, `${baseName}_${parcelFilename(layers[i], idx)}.geojson`);
+      await new Promise(r => setTimeout(r, 300));
+    }
+  };
+
+  // ---------- Import ----------
+  document.getElementById('importBtn').onclick = () => document.getElementById('importFile').click();
+  document.getElementById('importFile').onchange = function (e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function (evt) {
+      try {
+        const geojson = JSON.parse(evt.target.result);
+        const layer = L.geoJSON(geojson, {
+          pointToLayer: (feature, latlng) => L.marker(latlng),
+          style: () => ({ color: '#2f6b3f' })
+        });
+        layer.eachLayer(l => {
+          l.feature_props = (l.feature && l.feature.properties) ? { ...l.feature.properties } : { id: idCounter++ };
+          if (!l.feature_props.id) l.feature_props.id = idCounter++;
+          if (l instanceof L.Marker) {
+            l.options.draggable = true;
+            l.dragging.enable();
+            l.on('dragend', refreshList);
+          }
+          drawnItems.addLayer(l);
+        });
+        if (layer.getBounds && layer.getBounds().isValid()) map.fitBounds(layer.getBounds(), { maxZoom: 18 });
+        refreshList();
+      } catch (err) { alert('Could not parse this file as valid GeoJSON.'); }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  // ---------- Clear ----------
+  document.getElementById('clearBtn').onclick = function () {
+    if (drawnItems.getLayers().length === 0) return;
+    if (confirm('Delete all drawn features? This cannot be undone.')) {
+      drawnItems.clearLayers();
+      localStorage.removeItem(STORAGE_KEY);
+      refreshList();
+    }
+  };
+
+  // ---------- Init: restore saved features ----------
+  loadState();
+  refreshList();
+
+  // Mobile bottom-sheet toggle
+  function isMobileLayout() { return window.matchMedia('(max-width: 768px)').matches; }
+  function toggleSidebar() {
+    if (!isMobileLayout()) return;
+    document.getElementById('sidebar').classList.toggle('open');
+    setTimeout(() => map.invalidateSize(), 300);
+  }
+  document.getElementById('sidebarHandle').addEventListener('click', toggleSidebar);
+  document.querySelector('#sidebar header').addEventListener('click', toggleSidebar);
+
+  map.on(L.Draw.Event.CREATED, function () {
+    if (isMobileLayout()) {
+      document.getElementById('sidebar').classList.remove('open');
+      setTimeout(() => map.invalidateSize(), 300);
+    }
+  });
+
+  window.addEventListener('resize', () => map.invalidateSize());
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('service-worker.js').then((reg) => {
+        reg.update();
+        if (reg.waiting) reg.waiting.postMessage('SKIP_WAITING');
+        reg.addEventListener('updatefound', () => {
+          const nw = reg.installing;
+          if (!nw) return;
+          nw.addEventListener('statechange', () => {
+            if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+              nw.postMessage('SKIP_WAITING');
+            }
+          });
+        });
+      }).catch(err => console.log('SW registration failed:', err));
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (reloaded) return;
+        reloaded = true;
+        window.location.reload();
+      });
+    });
+  }
+</script>
+
+<script>
+/* ---------- Account / subscription panel ---------- */
+(function () {
+  var SB_URL = 'https://dprgxkjqazuzrtjwjzer.supabase.co';
+  var SB_KEY = 'sb_publishable_MlB8GalNzsjBsGN1KVKBPw_P9Bntz0s';
+  var STORAGE_KEY = 'sb-dprgxkjqazuzrtjwjzer-auth-token';
+
+  function session() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch (e) { return null; }
+  }
+  function fmt(d) {
+    if (!d) return '—';
+    try { return new Date(d).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }); }
+    catch (e) { return '—'; }
+  }
+  function days(d) {
+    if (!d) return 0;
+    return Math.max(0, Math.ceil((new Date(d).getTime() - Date.now()) / 86400000));
+  }
+  function $(id) { return document.getElementById(id); }
+
+  var s = session();
+  var user = s && s.user ? s.user : null;
+  var email = (user && user.email) || '';
+  if (email) {
+    $('accEmail').textContent = email;
+    $('accAvatar').textContent = email.charAt(0);
+  } else {
+    $('accEmail').textContent = 'Not signed in';
+  }
+  var meta = (user && user.user_metadata) || {};
+  $('accName').textContent = meta.full_name || meta.name || 'Survey account';
+
+  function paint(sub) {
+    var pill = $('accPlanPill');
+    if (!sub) {
+      pill.textContent = 'No plan'; pill.className = 'plan-pill off';
+      $('accStatus').textContent = 'Inactive';
+      return;
+    }
+    var trialing = sub.status === 'trialing' && new Date(sub.trial_ends_at || 0).getTime() > Date.now();
+    var active = sub.status === 'active' && new Date(sub.current_period_end || 0).getTime() > Date.now();
+    if (trialing) {
+      pill.textContent = 'Free trial'; pill.className = 'plan-pill trial';
+      $('accStatus').textContent = days(sub.trial_ends_at) + ' day(s) left';
+      $('accRenew').textContent = fmt(sub.trial_ends_at);
+    } else if (active) {
+      pill.textContent = 'Active'; pill.className = 'plan-pill';
+      $('accStatus').textContent = 'Subscribed';
+      $('accRenew').textContent = fmt(sub.current_period_end);
+    } else {
+      pill.textContent = 'Expired'; pill.className = 'plan-pill off';
+      $('accStatus').textContent = 'Expired — subscribe to continue';
+      $('accRenew').textContent = fmt(sub.current_period_end || sub.trial_ends_at);
+    }
+  }
+
+  if (s && s.access_token) {
+    fetch(SB_URL + '/rest/v1/subscriptions?select=plan,status,trial_ends_at,current_period_end&limit=1', {
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + s.access_token }
+    }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (rows) { paint(rows && rows[0]); })
+      .catch(function () {});
+  }
+
+  $('manageSubBtn').addEventListener('click', function () { window.location.href = '/subscribe'; });
+
+  $('signOutBtn').addEventListener('click', function () {
+    if (!confirm('Sign out of SurveyGeoBuilder?')) return;
+    var tok = s && s.access_token;
+    var done = function () {
+      try {
+        Object.keys(localStorage).forEach(function (k) { if (k.indexOf('sb-') === 0) localStorage.removeItem(k); });
+      } catch (e) {}
+      window.location.replace('/auth');
+    };
+    if (!tok) return done();
+    fetch(SB_URL + '/auth/v1/logout', {
+      method: 'POST',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + tok }
+    }).then(done, done);
+  });
+})();
+</script>
+</body>
+</html>
