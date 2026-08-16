@@ -181,7 +181,75 @@
 
     #undoFab{ top:auto; bottom:60px; left:12px; }
   }
+  /* ---------- Refreshed interface (v13) ---------- */
+  :root{
+    --paper:#eef1ec;
+    --panel:#ffffff;
+    --border:#e2e5dd;
+    --line:#2f6b3f;
+    --line-dark:#1e4a2b;
+    --accent:#c96a3b;
+  }
+  body{font-family:'Segoe UI Variable','Segoe UI',system-ui,-apple-system,sans-serif;}
+  #sidebar{box-shadow:1px 0 0 var(--border);}
+  #sidebar header{
+    background:linear-gradient(135deg,var(--line-dark),var(--line));
+    color:#f2f7f1;border-bottom:none;padding:18px 18px 16px;
+  }
+  #sidebar header h1{color:#fff;font-size:16px;font-weight:700;}
+  #sidebar header p{color:rgba(255,255,255,.78);}
+  #sidebar header .tap-hint{color:#ffd9b0;}
+
+  .section{padding:14px 16px;border-bottom:1px solid var(--border);}
+  .section h2{color:#7d8878;}
+
+  .btn{
+    border-radius:10px;padding:10px 12px;background:#f7f8f5;border-color:var(--border);
+    font-weight:500;box-shadow:0 1px 0 rgba(0,0,0,.02);
+  }
+  .btn:hover{background:#eef1ea;border-color:#cfd6c9;}
+  .btn.primary{box-shadow:0 2px 8px rgba(47,107,63,.25);}
+  .btn.accent{box-shadow:0 2px 8px rgba(201,106,59,.25);}
+
+  .tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .tool-grid .btn{
+    margin-bottom:0;flex-direction:column;align-items:flex-start;gap:6px;
+    font-size:12.5px;line-height:1.25;min-height:74px;justify-content:center;
+  }
+  .tool-grid .btn svg{width:18px;height:18px;color:var(--line);}
+  .tool-grid .btn.accent svg{color:#fff;}
+
+  /* Account card */
+  #accountCard{
+    margin:12px 16px 0;padding:12px 14px;border:1px solid var(--border);border-radius:12px;
+    background:#fbfcfa;
+  }
+  #accountCard .acc-top{display:flex;align-items:center;gap:10px;}
+  #accountCard .avatar{
+    width:36px;height:36px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+    background:var(--line);color:#fff;font-weight:700;font-size:14px;text-transform:uppercase;
+  }
+  #accountCard .acc-mail{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #accountCard .acc-sub{font-size:11px;color:#7d8878;}
+  .plan-pill{
+    display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+    padding:2px 8px;border-radius:999px;background:#e7f0e5;color:var(--line-dark);
+  }
+  .plan-pill.trial{background:#fff3cd;color:#8a6d1a;}
+  .plan-pill.off{background:#fbe0d5;color:#a8532a;}
+  .acc-rows{margin-top:10px;display:grid;gap:6px;font-size:12px;color:#5f6a5c;}
+  .acc-rows div{display:flex;justify-content:space-between;gap:8px;}
+  .acc-rows span:last-child{font-weight:600;color:var(--ink);}
+  .acc-actions{display:flex;gap:8px;margin-top:12px;}
+  .acc-actions .btn{margin-bottom:0;justify-content:center;font-size:12px;padding:8px 10px;}
+  .acc-actions .btn.signout{color:#a8532a;border-color:#f0d9c8;background:#fff6f1;}
+
+  @media (max-width:768px){
+    #sidebar{border-radius:18px 18px 0 0;}
+    #accountCard{margin:10px 14px 0;}
+  }
 </style>
+
 <script>
 /* Subscription gate: only signed-in users with an active trial or subscription may use the app. */
 (function () {
@@ -239,62 +307,91 @@
       <p class="tap-hint">Tap to expand / collapse</p>
     </header>
 
+    <div id="accountCard">
+      <div class="acc-top">
+        <div class="avatar" id="accAvatar">?</div>
+        <div style="min-width:0;flex:1;">
+          <div class="acc-mail" id="accEmail">Loading account…</div>
+          <div class="acc-sub" id="accName">Signed in</div>
+        </div>
+        <span class="plan-pill" id="accPlanPill">…</span>
+      </div>
+      <div class="acc-rows">
+        <div><span>Plan</span><span id="accPlan">Monthly — PKR 3,000</span></div>
+        <div><span>Status</span><span id="accStatus">—</span></div>
+        <div><span>Renews / ends</span><span id="accRenew">—</span></div>
+      </div>
+      <div class="acc-actions">
+        <button class="btn" id="manageSubBtn">Subscription</button>
+        <button class="btn signout" id="signOutBtn">Sign out</button>
+      </div>
+    </div>
+
+
+
     <div class="section">
       <h2>Location</h2>
-      <button class="btn" id="locateBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
-        Go to my GPS location
-      </button>
-      <button class="btn" id="gotoLLBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z"/><circle cx="12" cy="9" r="2"/></svg>
-        Go to Lat / Lng
-      </button>
-      <button class="btn" id="searchBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
-        Search place / address
-      </button>
+      <div class="tool-grid">
+        <button class="btn" id="locateBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+          My GPS location
+        </button>
+        <button class="btn" id="gotoLLBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z"/><circle cx="12" cy="9" r="2"/></svg>
+          Go to Lat / Lng
+        </button>
+        <button class="btn" id="searchBtn" style="grid-column:1 / -1;flex-direction:row;align-items:center;min-height:0;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+          Search place / address
+        </button>
+      </div>
     </div>
 
     <div class="section">
       <h2>Tools</h2>
-      <button class="btn" id="addByDimBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12"/><path d="M3 12h18"/></svg>
-        Add polygon by dimensions
-      </button>
-      <button class="btn" id="cutBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.12 8.12L20 20M8.12 15.88L20 4"/></svg>
-        Cut polygon
-      </button>
-      <button class="btn" id="mergeBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h9v9H4zM11 11h9v9h-9z"/><path d="M11 7h6v4M7 11v6h4"/></svg>
-        Merge polygons
-      </button>
-      <button class="btn" id="divideBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16"/><path d="M9 4v16M15 4v16"/></svg>
-        Divide polygon by area
-      </button>
+      <div class="tool-grid">
+        <button class="btn" id="addByDimBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12"/><path d="M3 12h18"/></svg>
+          Polygon by dimensions
+        </button>
+        <button class="btn" id="cutBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.12 8.12L20 20M8.12 15.88L20 4"/></svg>
+          Cut polygon
+        </button>
+        <button class="btn" id="mergeBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h9v9H4zM11 11h9v9h-9z"/><path d="M11 7h6v4M7 11v6h4"/></svg>
+          Merge polygons
+        </button>
+        <button class="btn" id="divideBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16"/><path d="M9 4v16M15 4v16"/></svg>
+          Divide by area
+        </button>
+      </div>
     </div>
 
     <div class="section">
       <h2>Data</h2>
-      <button class="btn accent" id="exportBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
-        Export GeoJSON (combined)
-      </button>
-      <button class="btn accent" id="exportPointsBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M6 8v6M18 8v6M8 6h8M9 16l2-2M15 16l-2-2"/></svg>
-        Export GeoJSON (separate files)
-      </button>
-      <button class="btn" id="importBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 0l-4 4m4-4l4 4M4 3h16"/></svg>
-        Import GeoJSON
-      </button>
+      <div class="tool-grid">
+        <button class="btn accent" id="exportBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+          Export ZIP (all parcels)
+        </button>
+        <button class="btn accent" id="exportPointsBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M6 8v6M18 8v6M8 6h8M9 16l2-2M15 16l-2-2"/></svg>
+          Export separate files
+        </button>
+        <button class="btn" id="importBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 0l-4 4m4-4l4 4M4 3h16"/></svg>
+          Import GeoJSON
+        </button>
+        <button class="btn" id="clearBtn" style="color:#a8532a;border-color:#f0d9c8;background:#fff6f1;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6"/></svg>
+          Clear all
+        </button>
+      </div>
       <input type="file" id="importFile" accept=".json,.geojson,application/geo+json,application/json">
-      <button class="btn" id="clearBtn" style="color:#a8532a;border-color:#f0d9c8;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6"/></svg>
-        Clear all features
-      </button>
     </div>
+
 
     <div class="section" style="border-bottom:none;padding-bottom:6px;">
       <h2>Features (<span id="featureCount">0</span>)</h2>
@@ -1801,6 +1898,91 @@ placeholder="90, 60
       });
     });
   }
+</script>
+
+<script>
+/* ---------- Account / subscription panel ---------- */
+(function () {
+  var SB_URL = 'https://dprgxkjqazuzrtjwjzer.supabase.co';
+  var SB_KEY = 'sb_publishable_MlB8GalNzsjBsGN1KVKBPw_P9Bntz0s';
+  var STORAGE_KEY = 'sb-dprgxkjqazuzrtjwjzer-auth-token';
+
+  function session() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch (e) { return null; }
+  }
+  function fmt(d) {
+    if (!d) return '—';
+    try { return new Date(d).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }); }
+    catch (e) { return '—'; }
+  }
+  function days(d) {
+    if (!d) return 0;
+    return Math.max(0, Math.ceil((new Date(d).getTime() - Date.now()) / 86400000));
+  }
+  function $(id) { return document.getElementById(id); }
+
+  var s = session();
+  var user = s && s.user ? s.user : null;
+  var email = (user && user.email) || '';
+  if (email) {
+    $('accEmail').textContent = email;
+    $('accAvatar').textContent = email.charAt(0);
+  } else {
+    $('accEmail').textContent = 'Not signed in';
+  }
+  var meta = (user && user.user_metadata) || {};
+  $('accName').textContent = meta.full_name || meta.name || 'Survey account';
+
+  function paint(sub) {
+    var pill = $('accPlanPill');
+    if (!sub) {
+      pill.textContent = 'No plan'; pill.className = 'plan-pill off';
+      $('accStatus').textContent = 'Inactive';
+      return;
+    }
+    var trialing = sub.status === 'trialing' && new Date(sub.trial_ends_at || 0).getTime() > Date.now();
+    var active = sub.status === 'active' && new Date(sub.current_period_end || 0).getTime() > Date.now();
+    if (trialing) {
+      pill.textContent = 'Free trial'; pill.className = 'plan-pill trial';
+      $('accStatus').textContent = days(sub.trial_ends_at) + ' day(s) left';
+      $('accRenew').textContent = fmt(sub.trial_ends_at);
+    } else if (active) {
+      pill.textContent = 'Active'; pill.className = 'plan-pill';
+      $('accStatus').textContent = 'Subscribed';
+      $('accRenew').textContent = fmt(sub.current_period_end);
+    } else {
+      pill.textContent = 'Expired'; pill.className = 'plan-pill off';
+      $('accStatus').textContent = 'Expired — subscribe to continue';
+      $('accRenew').textContent = fmt(sub.current_period_end || sub.trial_ends_at);
+    }
+  }
+
+  if (s && s.access_token) {
+    fetch(SB_URL + '/rest/v1/subscriptions?select=plan,status,trial_ends_at,current_period_end&limit=1', {
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + s.access_token }
+    }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (rows) { paint(rows && rows[0]); })
+      .catch(function () {});
+  }
+
+  $('manageSubBtn').addEventListener('click', function () { window.location.href = '/subscribe'; });
+
+  $('signOutBtn').addEventListener('click', function () {
+    if (!confirm('Sign out of SurveyGeoBuilder?')) return;
+    var tok = s && s.access_token;
+    var done = function () {
+      try {
+        Object.keys(localStorage).forEach(function (k) { if (k.indexOf('sb-') === 0) localStorage.removeItem(k); });
+      } catch (e) {}
+      window.location.replace('/auth');
+    };
+    if (!tok) return done();
+    fetch(SB_URL + '/auth/v1/logout', {
+      method: 'POST',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + tok }
+    }).then(done, done);
+  });
+})();
 </script>
 </body>
 </html>
