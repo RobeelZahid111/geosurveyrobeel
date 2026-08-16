@@ -307,6 +307,28 @@
       <p class="tap-hint">Tap to expand / collapse</p>
     </header>
 
+    <div id="accountCard">
+      <div class="acc-top">
+        <div class="avatar" id="accAvatar">?</div>
+        <div style="min-width:0;flex:1;">
+          <div class="acc-mail" id="accEmail">Loading account…</div>
+          <div class="acc-sub" id="accName">Signed in</div>
+        </div>
+        <span class="plan-pill" id="accPlanPill">…</span>
+      </div>
+      <div class="acc-rows">
+        <div><span>Plan</span><span id="accPlan">Monthly — PKR 3,000</span></div>
+        <div><span>Status</span><span id="accStatus">—</span></div>
+        <div><span>Renews / ends</span><span id="accRenew">—</span></div>
+      </div>
+      <div class="acc-actions">
+        <button class="btn" id="manageSubBtn">Subscription</button>
+        <button class="btn signout" id="signOutBtn">Sign out</button>
+      </div>
+    </div>
+
+
+
     <div class="section">
       <h2>Location</h2>
       <button class="btn" id="locateBtn">
