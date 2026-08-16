@@ -1899,5 +1899,90 @@ placeholder="90, 60
     });
   }
 </script>
+
+<script>
+/* ---------- Account / subscription panel ---------- */
+(function () {
+  var SB_URL = 'https://dprgxkjqazuzrtjwjzer.supabase.co';
+  var SB_KEY = 'sb_publishable_MlB8GalNzsjBsGN1KVKBPw_P9Bntz0s';
+  var STORAGE_KEY = 'sb-dprgxkjqazuzrtjwjzer-auth-token';
+
+  function session() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch (e) { return null; }
+  }
+  function fmt(d) {
+    if (!d) return '—';
+    try { return new Date(d).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }); }
+    catch (e) { return '—'; }
+  }
+  function days(d) {
+    if (!d) return 0;
+    return Math.max(0, Math.ceil((new Date(d).getTime() - Date.now()) / 86400000));
+  }
+  function $(id) { return document.getElementById(id); }
+
+  var s = session();
+  var user = s && s.user ? s.user : null;
+  var email = (user && user.email) || '';
+  if (email) {
+    $('accEmail').textContent = email;
+    $('accAvatar').textContent = email.charAt(0);
+  } else {
+    $('accEmail').textContent = 'Not signed in';
+  }
+  var meta = (user && user.user_metadata) || {};
+  $('accName').textContent = meta.full_name || meta.name || 'Survey account';
+
+  function paint(sub) {
+    var pill = $('accPlanPill');
+    if (!sub) {
+      pill.textContent = 'No plan'; pill.className = 'plan-pill off';
+      $('accStatus').textContent = 'Inactive';
+      return;
+    }
+    var trialing = sub.status === 'trialing' && new Date(sub.trial_ends_at || 0).getTime() > Date.now();
+    var active = sub.status === 'active' && new Date(sub.current_period_end || 0).getTime() > Date.now();
+    if (trialing) {
+      pill.textContent = 'Free trial'; pill.className = 'plan-pill trial';
+      $('accStatus').textContent = days(sub.trial_ends_at) + ' day(s) left';
+      $('accRenew').textContent = fmt(sub.trial_ends_at);
+    } else if (active) {
+      pill.textContent = 'Active'; pill.className = 'plan-pill';
+      $('accStatus').textContent = 'Subscribed';
+      $('accRenew').textContent = fmt(sub.current_period_end);
+    } else {
+      pill.textContent = 'Expired'; pill.className = 'plan-pill off';
+      $('accStatus').textContent = 'Expired — subscribe to continue';
+      $('accRenew').textContent = fmt(sub.current_period_end || sub.trial_ends_at);
+    }
+  }
+
+  if (s && s.access_token) {
+    fetch(SB_URL + '/rest/v1/subscriptions?select=plan,status,trial_ends_at,current_period_end&limit=1', {
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + s.access_token }
+    }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (rows) { paint(rows && rows[0]); })
+      .catch(function () {});
+  }
+
+  $('manageSubBtn').addEventListener('click', function () { window.location.href = '/subscribe'; });
+
+  $('signOutBtn').addEventListener('click', function () {
+    if (!confirm('Sign out of SurveyGeoBuilder?')) return;
+    var tok = s && s.access_token;
+    var done = function () {
+      try {
+        Object.keys(localStorage).forEach(function (k) { if (k.indexOf('sb-') === 0) localStorage.removeItem(k); });
+      } catch (e) {}
+      window.location.replace('/auth');
+    };
+    if (!tok) return done();
+    fetch(SB_URL + '/auth/v1/logout', {
+      method: 'POST',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + tok }
+    }).then(done, done);
+  });
+})();
+</script>
 </body>
 </html>
