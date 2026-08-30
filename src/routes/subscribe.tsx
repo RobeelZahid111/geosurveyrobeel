@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+import { amIAdmin } from "@/lib/admin.functions";
 import {
   PLAN_PRICE_LABEL,
   TRIAL_DAYS,
@@ -47,6 +49,8 @@ function SubscribePage() {
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState<string | null>(null);
   const [access, setAccess] = useState<Access | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const checkAdmin = useServerFn(amIAdmin);
 
   useEffect(() => {
     let cancelled = false;
@@ -65,6 +69,12 @@ function SubscribePage() {
       if (cancelled) return;
       setEmail(session.user.email ?? null);
       setAccess(evaluateAccess(data as SubscriptionRow | null));
+      try {
+        const r = await checkAdmin();
+        if (!cancelled) setIsAdmin(r.isAdmin);
+      } catch {
+        /* not admin */
+      }
       setLoading(false);
     })();
     return () => {
@@ -144,6 +154,11 @@ function SubscribePage() {
               >
                 Subscribe — {PLAN_PRICE_LABEL}
               </Button>
+              {isAdmin && (
+                <Button variant="outline" onClick={() => navigate({ to: "/admin" })}>
+                  Admin dashboard
+                </Button>
+              )}
               <Button variant="ghost" onClick={signOut}>
                 Sign out
               </Button>
