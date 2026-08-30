@@ -1860,6 +1860,8 @@ placeholder="90, 60
   // ---------- Init: restore saved features ----------
   loadState();
   refreshList();
+  window.__sgb = { map, drawnItems, downloadBlob, sanitizeFilename, promptForFilename, parcelFilename };
+
 
   // Mobile bottom-sheet toggle
   function isMobileLayout() { return window.matchMedia('(max-width: 768px)').matches; }
