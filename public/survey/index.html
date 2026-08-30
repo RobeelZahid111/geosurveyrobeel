@@ -380,6 +380,11 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M6 8v6M18 8v6M8 6h8M9 16l2-2M15 16l-2-2"/></svg>
           Export separate files
         </button>
+        <button class="btn" id="exportKmlBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+          Export KML
+        </button>
+
         <button class="btn" id="importBtn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 0l-4 4m4-4l4 4M4 3h16"/></svg>
           Import GeoJSON
@@ -1855,6 +1860,8 @@ placeholder="90, 60
   // ---------- Init: restore saved features ----------
   loadState();
   refreshList();
+  window.__sgb = { map, drawnItems, downloadBlob, sanitizeFilename, promptForFilename, parcelFilename };
+
 
   // Mobile bottom-sheet toggle
   function isMobileLayout() { return window.matchMedia('(max-width: 768px)').matches; }
@@ -2112,6 +2119,8 @@ placeholder="90, 60
       { sep: true },
       { id: 'exportBtn', label: 'ZIP' },
       { id: 'exportPointsBtn', label: 'Files' },
+      { id: 'exportKmlBtn', label: 'KML' },
+
       { id: 'importBtn', label: 'Import' },
       { id: 'clearBtn', label: 'Clear', danger: true }
     ];
@@ -2154,6 +2163,138 @@ placeholder="90, 60
   }
   window.appToast = toast;
   window.alert = function (m) { toast(m); };
+})();
+</script>
+
+<style>
+  /* ---------- v16: top bar (no overlap) + live coordinate chip ---------- */
+  #topBar{
+    position:absolute; z-index:1250; top:8px; left:60px; right:8px;
+    display:flex; flex-wrap:wrap; gap:6px; align-items:flex-start; justify-content:space-between;
+    pointer-events:none;
+  }
+  #topBar > *{ pointer-events:auto; }
+  #topBar #historyFabs{ position:static !important; display:flex; gap:6px; }
+  #topBar #rotateFab{ position:static !important; }
+  #topBar .map-fab{ padding:6px 10px; font-size:12px; }
+
+  #coordChip{
+    position:absolute; z-index:1250; right:8px; bottom:34px;
+    background:rgba(16,26,32,.92); color:#eef5f4; font-family:ui-monospace,monospace;
+    font-size:11.5px; line-height:1.35; padding:6px 10px; border-radius:10px;
+    box-shadow:0 4px 14px rgba(16,26,32,.25); max-width:70vw; white-space:nowrap;
+  }
+  #coordChip b{ color:#7fd6c0; font-weight:600; }
+
+  @media (max-width:768px){
+    #topBar{ left:56px; right:6px; top:6px; }
+    #topBar .map-fab{ padding:5px 8px; font-size:11px; border-radius:10px; }
+    #topBar #rotateFab input{ width:44px; }
+    #coordChip{ bottom:126px; left:6px; right:auto; max-width:88vw; }
+  }
+</style>
+<script>
+(function(){
+  var wrap = document.getElementById('mapWrap');
+  if(!wrap) return;
+
+  /* ---- 1. group the top controls so Undo/Redo and compass never overlap ---- */
+  try{
+    var bar = document.createElement('div');
+    bar.id = 'topBar';
+    var hist = document.getElementById('historyFabs');
+    var rot  = document.getElementById('rotateFab');
+    if (hist) bar.appendChild(hist);
+    if (rot)  bar.appendChild(rot);
+    wrap.appendChild(bar);
+  }catch(e){}
+
+  /* ---- 2. live lat/lng chip (works on mobile: follows map centre + taps) ---- */
+  var chip = document.createElement('div');
+  chip.id = 'coordChip';
+  chip.textContent = '—';
+  wrap.appendChild(chip);
+
+  function ready(cb){
+    if (window.__sgb && window.__sgb.map) return cb(window.__sgb.map);
+    setTimeout(function(){ ready(cb); }, 250);
+  }
+
+  ready(function(map){
+    function show(lat, lng, label){
+      chip.innerHTML = '<b>' + (label || 'Center') + '</b> ' +
+        lat.toFixed(6) + ', ' + lng.toFixed(6);
+    }
+    function fromCenter(){ var c = map.getCenter(); show(c.lat, c.lng, 'Center'); }
+    map.on('move', fromCenter);
+    map.on('mousemove', function(e){ show(e.latlng.lat, e.latlng.lng, 'Cursor'); });
+    map.on('click', function(e){ show(e.latlng.lat, e.latlng.lng, 'Tap'); });
+    chip.addEventListener('click', function(){
+      var c = map.getCenter();
+      var txt = c.lat.toFixed(6) + ', ' + c.lng.toFixed(6);
+      if (navigator.clipboard) navigator.clipboard.writeText(txt);
+      if (window.appToast) window.appToast('Copied: ' + txt, 'ok');
+    });
+    fromCenter();
+  });
+
+  /* ---- 3. KML export ---- */
+  function esc(s){
+    return String(s == null ? '' : s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function coordStr(latlngs){
+    return latlngs.map(function(p){ return p.lng.toFixed(8) + ',' + p.lat.toFixed(8) + ',0'; }).join(' ');
+  }
+  function ringOf(layer){
+    var ll = layer.getLatLngs();
+    while (Array.isArray(ll[0])) ll = ll[0];
+    return ll;
+  }
+  function placemark(layer, idx, sgb){
+    var name = esc((layer.feature_props && layer.feature_props.name) || sgb.parcelFilename(layer, idx));
+    var desc = esc((layer.feature_props && layer.feature_props.notes) || '');
+    if (layer instanceof L.Polygon){
+      var ring = ringOf(layer).slice();
+      if (ring.length && (ring[0].lat !== ring[ring.length-1].lat || ring[0].lng !== ring[ring.length-1].lng)) ring.push(ring[0]);
+      return '<Placemark><name>'+name+'</name><description>'+desc+'</description><styleUrl>#parcel</styleUrl>' +
+        '<Polygon><tessellate>1</tessellate><outerBoundaryIs><LinearRing><coordinates>' +
+        coordStr(ring) + '</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>';
+    }
+    if (layer instanceof L.Polyline){
+      return '<Placemark><name>'+name+'</name><description>'+desc+'</description><styleUrl>#parcel</styleUrl>' +
+        '<LineString><tessellate>1</tessellate><coordinates>' + coordStr(ringOf(layer)) +
+        '</coordinates></LineString></Placemark>';
+    }
+    if (layer.getLatLng){
+      var p = layer.getLatLng();
+      return '<Placemark><name>'+name+'</name><description>'+desc+'</description>' +
+        '<Point><coordinates>' + p.lng.toFixed(8) + ',' + p.lat.toFixed(8) + ',0</coordinates></Point></Placemark>';
+    }
+    return '';
+  }
+  function buildKml(layers, docName, sgb){
+    var body = layers.map(function(l, i){ return placemark(l, i+1, sgb); }).filter(Boolean).join('\n');
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>' + esc(docName) + '</name>' +
+      '<Style id="parcel"><LineStyle><color>ff3b6ac9</color><width>2</width></LineStyle>' +
+      '<PolyStyle><color>4d3b6ac9</color></PolyStyle></Style>\n' + body +
+      '\n</Document></kml>';
+  }
+
+  var btn = document.getElementById('exportKmlBtn');
+  if (btn) btn.addEventListener('click', function(){
+    var sgb = window.__sgb;
+    if (!sgb) return;
+    var layers = [];
+    sgb.drawnItems.eachLayer(function(l){ layers.push(l); });
+    if (!layers.length){ alert('No features to export.'); return; }
+    var base = sgb.sanitizeFilename(sgb.promptForFilename('survey_parcels'));
+    if (!base) return;
+    var kml = buildKml(layers, base, sgb);
+    sgb.downloadBlob(new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' }), base + '.kml');
+    if (window.appToast) window.appToast(layers.length + ' feature(s) KML mein export ho gaye.', 'ok');
+  });
 })();
 </script>
 
