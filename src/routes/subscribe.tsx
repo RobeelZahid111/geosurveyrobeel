@@ -144,6 +144,11 @@ function SubscribePage() {
               >
                 Subscribe — {PLAN_PRICE_LABEL}
               </Button>
+              {isAdmin && (
+                <Button variant="outline" onClick={() => navigate({ to: "/admin" })}>
+                  Admin dashboard
+                </Button>
+              )}
               <Button variant="ghost" onClick={signOut}>
                 Sign out
               </Button>
