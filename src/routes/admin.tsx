@@ -141,11 +141,16 @@ function AdminPage() {
   return (
     <main className="min-h-screen bg-background px-4 py-8">
       <div className="mx-auto max-w-5xl space-y-6">
-        <header className="space-y-1">
-          <h1 className="text-2xl font-bold text-foreground">Admin dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            {rows.length} registered account(s). Grant free access manually after the trial ends.
-          </p>
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-bold text-foreground">Admin dashboard</h1>
+            <p className="text-sm text-muted-foreground">
+              {rows.length} registered account(s). Grant free access manually after the trial ends.
+            </p>
+          </div>
+          <Button variant="outline" onClick={() => navigate({ to: "/subscribe" })}>
+            Back to my account
+          </Button>
         </header>
 
         <div className="flex flex-wrap items-end gap-3">
