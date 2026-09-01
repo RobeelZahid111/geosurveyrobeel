@@ -323,6 +323,7 @@
       </div>
       <div class="acc-actions">
         <button class="btn" id="manageSubBtn">Subscription</button>
+        <button class="btn" id="adminDashBtn">Admin</button>
         <button class="btn signout" id="signOutBtn">Sign out</button>
       </div>
     </div>
@@ -1973,6 +1974,7 @@ placeholder="90, 60
   }
 
   $('manageSubBtn').addEventListener('click', function () { window.location.href = '/subscribe'; });
+  $('adminDashBtn').addEventListener('click', function () { window.location.href = '/admin'; });
 
   $('signOutBtn').addEventListener('click', function () {
     if (!confirm('Sign out of SurveyGeoBuilder?')) return;

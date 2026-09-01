@@ -150,6 +150,12 @@ function AuthPage() {
           >
             {mode === "signin" ? "New here? Create an account" : "Already have an account? Sign in"}
           </button>
+          <a
+            href="/admin"
+            className="block w-full text-center text-sm text-muted-foreground underline-offset-4 hover:underline"
+          >
+            Admin dashboard
+          </a>
         </CardContent>
       </Card>
     </main>
