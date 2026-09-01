@@ -148,8 +148,8 @@ function AdminPage() {
               {rows.length} registered account(s). Grant free access manually after the trial ends.
             </p>
           </div>
-          <Button variant="outline" onClick={() => navigate({ to: "/subscribe" })}>
-            Back to my account
+          <Button variant="outline" onClick={() => window.location.assign("/survey/index.html")}>
+            Back to survey app
           </Button>
         </header>
 

@@ -1,13 +1,25 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+const ADMIN_EMAIL = "robeelzahid111@gmail.com";
+
 async function assertAdmin(context: { supabase: any; userId: string }) {
-  const { data, error } = await context.supabase.rpc("has_role", {
+  const { data: hasAdminRole, error: roleError } = await context.supabase.rpc("has_role", {
     _user_id: context.userId,
     _role: "admin",
   });
-  if (error) throw new Error("Could not verify admin role");
-  if (!data) throw new Error("Forbidden");
+  if (roleError) throw new Error("Could not verify admin role");
+
+  const { data: user, error: userError } = await context.supabase
+    .from("profiles")
+    .select("email")
+    .eq("id", context.userId)
+    .single();
+  if (userError) throw new Error("Could not verify admin email");
+
+  if (!hasAdminRole || user?.email !== ADMIN_EMAIL) {
+    throw new Error("Forbidden");
+  }
 }
 
 export type AdminUserRow = {
@@ -25,11 +37,18 @@ export type AdminUserRow = {
 export const amIAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data } = await context.supabase.rpc("has_role", {
+    const { data: hasAdminRole } = await context.supabase.rpc("has_role", {
       _user_id: context.userId,
       _role: "admin",
     });
-    return { isAdmin: Boolean(data) };
+
+    const { data: user } = await context.supabase
+      .from("profiles")
+      .select("email")
+      .eq("id", context.userId)
+      .single();
+
+    return { isAdmin: Boolean(hasAdminRole) && user?.email === ADMIN_EMAIL };
   });
 
 export const listUsers = createServerFn({ method: "GET" })
