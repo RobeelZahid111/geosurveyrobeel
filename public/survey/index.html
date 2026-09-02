@@ -2325,5 +2325,99 @@ placeholder="90, 60
 })();
 </script>
 
+<style>
+  /* ---------- v19: basemap control below compass + hide/pin tool dock ---------- */
+  .leaflet-top.leaflet-right{
+    top:calc(58px + env(safe-area-inset-top)) !important;
+  }
+  .leaflet-control-layers{
+    border-radius:12px !important;
+    box-shadow:0 4px 14px rgba(16,26,32,.18) !important;
+    border:1px solid var(--border) !important;
+  }
+  @media (max-width:768px){
+    .leaflet-top.leaflet-right{ top:calc(52px + env(safe-area-inset-top)) !important; }
+    .leaflet-control-layers-toggle{ width:38px !important; height:38px !important; background-size:22px 22px !important; }
+  }
+
+  #dockToggle{
+    position:absolute; z-index:1300;
+    display:flex; align-items:center; gap:6px;
+    background:var(--panel,#fff); border:1px solid var(--border);
+    border-radius:12px; padding:7px 11px; font-size:12px; font-weight:600;
+    color:var(--line-dark); box-shadow:0 4px 14px rgba(16,26,32,.18); cursor:pointer;
+    right:10px; bottom:10px;
+  }
+  #dockPin{
+    background:transparent; border:0; cursor:pointer; font-size:14px;
+    line-height:1; padding:2px 4px; border-radius:8px; opacity:.55;
+  }
+  #dockPin.pinned{ opacity:1; background:rgba(47,191,155,.18); }
+  #toolDock.dock-hidden{ display:none !important; }
+  @media (max-width:768px){
+    #dockToggle{ bottom:8px; right:8px; padding:6px 10px; font-size:11px; }
+  }
+</style>
+<script>
+(function(){
+  var wrap = document.getElementById('mapWrap');
+  var dock = document.getElementById('toolDock');
+  if(!wrap || !dock) return;
+
+  /* collapse the basemap switcher so it stays a small button under the compass */
+  try{
+    var lc = document.querySelector('.leaflet-control-layers');
+    if (lc) lc.classList.add('leaflet-control-layers-collapsed');
+  }catch(e){}
+
+  /* pin button inside the dock */
+  var pin = document.createElement('button');
+  pin.id = 'dockPin';
+  pin.type = 'button';
+  pin.title = 'Pin tools (keep open)';
+  dock.appendChild(pin);
+
+  /* show/hide toggle */
+  var toggle = document.createElement('button');
+  toggle.id = 'dockToggle';
+  toggle.type = 'button';
+  toggle.innerHTML = '<span>🧰</span><span id="dockToggleLabel">Tools</span>';
+  wrap.appendChild(toggle);
+
+  var pinned = localStorage.getItem('sgb_dock_pinned') === '1';
+  var open   = localStorage.getItem('sgb_dock_open') !== '0';
+
+  function render(){
+    dock.classList.toggle('dock-hidden', !(open || pinned));
+    pin.textContent = pinned ? '📌' : '📍';
+    pin.classList.toggle('pinned', pinned);
+    var lbl = document.getElementById('dockToggleLabel');
+    if (lbl) lbl.textContent = (open || pinned) ? 'Hide tools' : 'Tools';
+  }
+
+  toggle.addEventListener('click', function(){
+    if (pinned){
+      pinned = false;
+      localStorage.setItem('sgb_dock_pinned','0');
+      open = false;
+    } else {
+      open = !open;
+    }
+    localStorage.setItem('sgb_dock_open', open ? '1' : '0');
+    render();
+  });
+
+  pin.addEventListener('click', function(ev){
+    ev.stopPropagation();
+    pinned = !pinned;
+    localStorage.setItem('sgb_dock_pinned', pinned ? '1' : '0');
+    if (pinned){ open = true; localStorage.setItem('sgb_dock_open','1'); }
+    render();
+    if (window.appToast) window.appToast(pinned ? 'Tools pinned' : 'Tools unpinned', 'ok');
+  });
+
+  render();
+})();
+</script>
 </body>
 </html>
