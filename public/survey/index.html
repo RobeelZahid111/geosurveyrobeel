@@ -119,8 +119,23 @@
   #undoCutFab{ top:230px; left:12px; display:none; background:#fff; color:var(--line-dark); border-color:var(--border);}
   .cut-target-highlight{ stroke-dasharray: 6 4; }
   .cut-line-preview{ }
-  #rotateFab{ top:12px; right:12px; }
-  #rotateFab input{ width:60px; padding:2px 4px; border:1px solid var(--border); border-radius:3px; font-size:12px; }
+  #rotateFab{
+    top:12px; right:12px;
+    display:flex; align-items:center; gap:8px;
+    padding:6px 8px 6px 10px;
+    min-height:40px;
+  }
+  #rotateFab span{ font-size:16px; line-height:1; }
+  #rotateFab input{
+    width:54px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:13px;
+    text-align:center; font-weight:600; color:var(--ink); background:#fff;
+  }
+  #resetRotBtn{
+    border:none; background:transparent; cursor:pointer; color:var(--accent); font-weight:700;
+    font-size:18px; line-height:1; padding:4px; border-radius:4px; display:flex; align-items:center; justify-content:center;
+    min-width:28px; min-height:28px;
+  }
+  #resetRotBtn:hover{ background:#f0eee2; }
   #historyFabs{ position:absolute; top:12px; left:60px; z-index:1000; display:flex; gap:6px; }
   #historyFabs .map-fab{ position:static; padding:6px 10px; }
   #historyFabs .map-fab[disabled]{ opacity:.4; cursor:not-allowed; }
@@ -247,6 +262,16 @@
   @media (max-width:768px){
     #sidebar{border-radius:18px 18px 0 0;}
     #accountCard{margin:10px 14px 0;}
+    #rotateFab{
+      top:calc(12px + env(safe-area-inset-top));
+      right:12px;
+      gap:6px;
+      padding:5px 7px 5px 9px;
+    }
+    #historyFabs{
+      top:calc(12px + env(safe-area-inset-top));
+      left:60px;
+    }
   }
 </style>
 
@@ -2171,7 +2196,7 @@ placeholder="90, 60
 <style>
   /* ---------- v16: top bar (no overlap) + live coordinate chip ---------- */
   #topBar{
-    position:absolute; z-index:1250; top:8px; left:60px; right:8px;
+    position:absolute; z-index:1250; top:calc(8px + env(safe-area-inset-top)); left:60px; right:8px;
     display:flex; flex-wrap:wrap; gap:6px; align-items:flex-start; justify-content:space-between;
     pointer-events:none;
   }
@@ -2189,7 +2214,7 @@ placeholder="90, 60
   #coordChip b{ color:#7fd6c0; font-weight:600; }
 
   @media (max-width:768px){
-    #topBar{ left:56px; right:6px; top:6px; }
+    #topBar{ left:56px; right:6px; top:calc(6px + env(safe-area-inset-top)); }
     #topBar .map-fab{ padding:5px 8px; font-size:11px; border-radius:10px; }
     #topBar #rotateFab input{ width:44px; }
     #coordChip{ bottom:126px; left:6px; right:auto; max-width:88vw; }
