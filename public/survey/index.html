@@ -2349,10 +2349,16 @@ placeholder="90, 60
     right:10px; bottom:10px;
   }
   #dockPin{
-    background:transparent; border:0; cursor:pointer; font-size:14px;
-    line-height:1; padding:2px 4px; border-radius:8px; opacity:.55;
+    position:absolute; z-index:1300;
+    right:10px; bottom:52px;
+    width:38px; height:38px; border-radius:12px;
+    background:var(--panel,#fff); border:1px solid var(--border);
+    box-shadow:0 4px 14px rgba(16,26,32,.18);
+    cursor:pointer; font-size:16px; line-height:1;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--line-dark); opacity:.85;
   }
-  #dockPin.pinned{ opacity:1; background:rgba(47,191,155,.18); }
+  #dockPin.pinned{ opacity:1; background:rgba(47,191,155,.18); border-color:#2fbf9b; }
   #toolDock.dock-hidden{ display:none !important; }
   @media (max-width:768px){
     #dockToggle{ bottom:8px; right:8px; padding:6px 10px; font-size:11px; }
@@ -2370,12 +2376,12 @@ placeholder="90, 60
     if (lc) lc.classList.add('leaflet-control-layers-collapsed');
   }catch(e){}
 
-  /* pin button inside the dock */
+  /* pin button floating above the toggle */
   var pin = document.createElement('button');
   pin.id = 'dockPin';
   pin.type = 'button';
   pin.title = 'Pin tools (keep open)';
-  dock.appendChild(pin);
+  wrap.appendChild(pin);
 
   /* show/hide toggle */
   var toggle = document.createElement('button');
