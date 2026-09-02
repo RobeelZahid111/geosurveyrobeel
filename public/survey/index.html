@@ -2196,7 +2196,7 @@ placeholder="90, 60
 <style>
   /* ---------- v16: top bar (no overlap) + live coordinate chip ---------- */
   #topBar{
-    position:absolute; z-index:1250; top:8px; left:60px; right:8px;
+    position:absolute; z-index:1250; top:calc(8px + env(safe-area-inset-top)); left:60px; right:8px;
     display:flex; flex-wrap:wrap; gap:6px; align-items:flex-start; justify-content:space-between;
     pointer-events:none;
   }
@@ -2214,7 +2214,7 @@ placeholder="90, 60
   #coordChip b{ color:#7fd6c0; font-weight:600; }
 
   @media (max-width:768px){
-    #topBar{ left:56px; right:6px; top:6px; }
+    #topBar{ left:56px; right:6px; top:calc(6px + env(safe-area-inset-top)); }
     #topBar .map-fab{ padding:5px 8px; font-size:11px; border-radius:10px; }
     #topBar #rotateFab input{ width:44px; }
     #coordChip{ bottom:126px; left:6px; right:auto; max-width:88vw; }
