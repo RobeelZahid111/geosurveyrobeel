@@ -2362,7 +2362,28 @@ placeholder="90, 60
   #toolDock.dock-hidden{ display:none !important; }
   @media (max-width:768px){
     #dockToggle{ bottom:8px; right:8px; padding:6px 10px; font-size:11px; }
-    #dockPin{ bottom:48px; right:8px; width:34px; height:34px; font-size:14px; }
+    #dockPin{
+      position:fixed !important;
+      z-index:5000 !important;
+      right:max(12px, env(safe-area-inset-right));
+      bottom:calc(58px + env(safe-area-inset-bottom));
+      width:44px; height:44px; min-width:44px; min-height:44px;
+      border:2px solid var(--line-dark);
+      border-radius:12px;
+      background:var(--panel,#fff);
+      color:var(--line-dark);
+      box-shadow:0 6px 20px rgba(16,26,32,.32);
+      opacity:1;
+      font-size:20px;
+      visibility:visible;
+      pointer-events:auto;
+      touch-action:manipulation;
+    }
+    #dockPin.pinned{
+      background:var(--line-dark);
+      color:var(--panel,#fff);
+      border-color:var(--line-dark);
+    }
   }
 </style>
 <script>
@@ -2396,8 +2417,10 @@ placeholder="90, 60
 
   function render(){
     dock.classList.toggle('dock-hidden', !(open || pinned));
-    pin.textContent = pinned ? '📌' : '📍';
+    pin.textContent = '📌';
     pin.classList.toggle('pinned', pinned);
+    pin.setAttribute('aria-label', pinned ? 'Unpin tools' : 'Pin tools');
+    pin.title = pinned ? 'Unpin tools' : 'Pin tools (keep open)';
     var lbl = document.getElementById('dockToggleLabel');
     if (lbl) lbl.textContent = (open || pinned) ? 'Hide tools' : 'Tools';
   }
