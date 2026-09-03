@@ -3,12 +3,19 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const ADMIN_EMAIL = "robeelzahid111@gmail.com";
 
+async function hasAdminRole(context: { supabase: any; userId: string }) {
+  const { data, error } = await context.supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", context.userId)
+    .eq("role", "admin")
+    .maybeSingle();
+  if (error) throw new Error("Could not verify admin role");
+  return Boolean(data);
+}
+
 async function assertAdmin(context: { supabase: any; userId: string }) {
-  const { data: hasAdminRole, error: roleError } = await context.supabase.rpc("has_role", {
-    _user_id: context.userId,
-    _role: "admin",
-  });
-  if (roleError) throw new Error("Could not verify admin role");
+  const isAdminRole = await hasAdminRole(context);
 
   const { data: user, error: userError } = await context.supabase
     .from("profiles")
@@ -17,7 +24,7 @@ async function assertAdmin(context: { supabase: any; userId: string }) {
     .single();
   if (userError) throw new Error("Could not verify admin email");
 
-  if (!hasAdminRole || user?.email !== ADMIN_EMAIL) {
+  if (!isAdminRole || user?.email !== ADMIN_EMAIL) {
     throw new Error("Forbidden");
   }
 }
