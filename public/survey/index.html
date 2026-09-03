@@ -2361,12 +2361,25 @@ placeholder="90, 60
   #dockPin.pinned{ opacity:1; background:rgba(47,191,155,.18); border-color:#2fbf9b; }
   #toolDock.dock-hidden{ display:none !important; }
   @media (max-width:768px){
-    #dockToggle{ bottom:8px; right:8px; padding:6px 10px; font-size:11px; }
+    #dockToggle{
+      position:fixed !important;
+      z-index:5000 !important;
+      right:max(10px, env(safe-area-inset-right));
+      bottom:calc(142px + env(safe-area-inset-bottom));
+      min-width:82px; min-height:44px;
+      justify-content:center;
+      padding:8px 10px; font-size:11px;
+      border:2px solid var(--line-dark);
+      background:var(--panel,#fff);
+      box-shadow:0 6px 20px rgba(16,26,32,.32);
+      visibility:visible; pointer-events:auto;
+      touch-action:manipulation;
+    }
     #dockPin{
       position:fixed !important;
       z-index:5000 !important;
       right:max(12px, env(safe-area-inset-right));
-      bottom:calc(58px + env(safe-area-inset-bottom));
+      bottom:calc(194px + env(safe-area-inset-bottom));
       width:44px; height:44px; min-width:44px; min-height:44px;
       border:2px solid var(--line-dark);
       border-radius:12px;
@@ -2409,7 +2422,7 @@ placeholder="90, 60
   var toggle = document.createElement('button');
   toggle.id = 'dockToggle';
   toggle.type = 'button';
-  toggle.innerHTML = '<span>🧰</span><span id="dockToggleLabel">Tools</span>';
+  toggle.innerHTML = '<span aria-hidden="true">👁</span><span id="dockToggleLabel">Hide</span>';
   wrap.appendChild(toggle);
 
   var pinned = localStorage.getItem('sgb_dock_pinned') === '1';
@@ -2422,7 +2435,7 @@ placeholder="90, 60
     pin.setAttribute('aria-label', pinned ? 'Unpin tools' : 'Pin tools');
     pin.title = pinned ? 'Unpin tools' : 'Pin tools (keep open)';
     var lbl = document.getElementById('dockToggleLabel');
-    if (lbl) lbl.textContent = (open || pinned) ? 'Hide tools' : 'Tools';
+    if (lbl) lbl.textContent = (open || pinned) ? 'Hide' : 'Show';
   }
 
   toggle.addEventListener('click', function(){
