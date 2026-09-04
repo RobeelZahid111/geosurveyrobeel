@@ -2482,5 +2482,181 @@ placeholder="90, 60
   render();
 })();
 </script>
+
+<script>
+/* ---------- Mouza Layers: backend khasra catalogue + on-demand layer loading ---------- */
+(function () {
+  var SB_URL = 'https://dprgxkjqazuzrtjwjzer.supabase.co';
+  var SB_KEY = 'sb_publishable_MlB8GalNzsjBsGN1KVKBPw_P9Bntz0s';
+  var AUTH_KEY = 'sb-dprgxkjqazuzrtjwjzer-auth-token';
+
+  function token() {
+    try { var s = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); return s && s.access_token; }
+    catch (e) { return null; }
+  }
+  function $(id) { return document.getElementById(id); }
+  function toast(m, k) { if (window.appToast) window.appToast(m, k || 'ok'); }
+
+  var catalogue = [];      // [{tehsil,qh,mouza,mouza_id,file_path,district}]
+  var loaded = false;
+  var geoCache = {};       // mouza_id -> geojson (session memory cache)
+  var layers = {};         // mouza_id -> L.GeoJSON
+  var worker = null, seq = 0, pending = {};
+
+  function getWorker() {
+    if (worker) return worker;
+    try {
+      worker = new Worker('/survey/mouza-worker.js');
+      worker.onmessage = function (ev) {
+        var d = ev.data, cb = pending[d.id];
+        delete pending[d.id];
+        if (cb) cb(d.ok ? null : new Error(d.error), d.geojson);
+      };
+    } catch (e) { worker = null; }
+    return worker;
+  }
+
+  function parseAsync(buffer, gzip) {
+    return new Promise(function (resolve, reject) {
+      var w = getWorker();
+      if (!w) { // fallback on main thread
+        try { resolve(JSON.parse(new TextDecoder().decode(buffer))); } catch (e) { reject(e); }
+        return;
+      }
+      var id = ++seq;
+      pending[id] = function (err, geo) { err ? reject(err) : resolve(geo); };
+      w.postMessage({ id: id, buffer: buffer, gzip: gzip }, [buffer]);
+    });
+  }
+
+  function api(path) {
+    return fetch(SB_URL + '/rest/v1/' + path, {
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + token() }
+    }).then(function (r) { return r.ok ? r.json() : []; });
+  }
+
+  function loadCatalogue() {
+    if (loaded) return Promise.resolve();
+    return api('mouza_layers?select=district,tehsil,qh,mouza,mouza_id,file_path&order=tehsil,qh,mouza&limit=20000')
+      .then(function (rows) {
+        catalogue = rows || [];
+        loaded = true;
+        fillTehsils();
+        render();
+      });
+  }
+
+  function uniq(a) { return Array.from(new Set(a.filter(Boolean))).sort(); }
+
+  function fillTehsils() {
+    var sel = $('mouzaTehsil');
+    sel.innerHTML = '<option value="">All Tehsils</option>' +
+      uniq(catalogue.map(function (r) { return r.tehsil; }))
+        .map(function (t) { return '<option>' + t + '</option>'; }).join('');
+  }
+  function fillQh() {
+    var t = $('mouzaTehsil').value;
+    var list = uniq(catalogue.filter(function (r) { return !t || r.tehsil === t; })
+      .map(function (r) { return r.qh; }));
+    $('mouzaQh').innerHTML = '<option value="">All QH (Qanungo Halqa)</option>' +
+      list.map(function (q) { return '<option>' + q + '</option>'; }).join('');
+  }
+
+  function matches(r) {
+    var t = $('mouzaTehsil').value, q = $('mouzaQh').value;
+    var s = ($('mouzaSearch').value || '').trim().toLowerCase();
+    if (t && r.tehsil !== t) return false;
+    if (q && r.qh !== q) return false;
+    if (!s) return true;
+    return (r.tehsil + ' ' + r.qh + ' ' + r.mouza + ' ' + (r.district || '')).toLowerCase().indexOf(s) !== -1;
+  }
+
+  function render() {
+    var box = $('mouzaList');
+    if (!loaded) { box.innerHTML = '<div class="empty-hint" style="padding:10px;">Loading Mouza catalogue…</div>'; return; }
+    if (!catalogue.length) {
+      box.innerHTML = '<div class="empty-hint" style="padding:10px;">No Mouza data published yet.</div>';
+      return;
+    }
+    var rows = catalogue.filter(matches).slice(0, 400);
+    if (!rows.length) { box.innerHTML = '<div class="empty-hint" style="padding:10px;">No match.</div>'; return; }
+    box.innerHTML = rows.map(function (r) {
+      var on = !!layers[r.mouza_id];
+      return '<label style="display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer;">' +
+        '<input type="checkbox" data-mouza="' + r.mouza_id + '"' + (on ? ' checked' : '') + ' style="margin-top:2px;">' +
+        '<span><strong>' + r.mouza + '</strong><br><span style="color:#6b6a5f;">' + r.tehsil + ' › ' + r.qh + '</span></span></label>';
+    }).join('');
+    Array.prototype.forEach.call(box.querySelectorAll('input[data-mouza]'), function (cb) {
+      cb.addEventListener('change', function () {
+        var id = cb.getAttribute('data-mouza');
+        if (cb.checked) enable(id, cb); else disable(id);
+      });
+    });
+  }
+
+  function popupHtml(p) {
+    p = p || {};
+    var rows = [
+      ['Khasra', p.Khasra_ID], ['Khewat', p.Khewat_ID], ['Mouza', p.Mouza],
+      ['QH', p.QH], ['Tehsil', p.Tehsil], ['District', p.District],
+      ['Type', p.Type], ['Shape Area', p.Shape_Area]
+    ].filter(function (r) { return r[1] !== undefined && r[1] !== null && r[1] !== ''; });
+    return '<div style="font-size:12px;line-height:1.6;">' + rows.map(function (r) {
+      return '<div><b>' + r[0] + ':</b> ' + r[1] + '</div>';
+    }).join('') + '</div>';
+  }
+
+  function addLayer(id, geo) {
+    var lyr = L.geoJSON(geo, {
+      style: { color: '#f59e0b', weight: 1.2, fillOpacity: 0.06 },
+      onEachFeature: function (f, l) { l.bindPopup(popupHtml(f.properties)); }
+    }).addTo(map);
+    layers[id] = lyr;
+    try { map.fitBounds(lyr.getBounds(), { maxZoom: 17 }); } catch (e) {}
+  }
+
+  function enable(id, cb) {
+    var rec = catalogue.filter(function (r) { return r.mouza_id === id; })[0];
+    if (!rec) return;
+    if (geoCache[id]) { addLayer(id, geoCache[id]); render(); return; }
+    if (cb) cb.disabled = true;
+    toast('Loading ' + rec.mouza + '…');
+    fetch(SB_URL + '/storage/v1/object/khasra-data/' + rec.file_path, {
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + token() }
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.arrayBuffer();
+    }).then(function (buf) {
+      return parseAsync(buf, /\.gz$/i.test(rec.file_path));
+    }).then(function (geo) {
+      geoCache[id] = geo;
+      addLayer(id, geo);
+      toast(rec.mouza + ' loaded', 'ok');
+    }).catch(function (e) {
+      toast('Could not load ' + rec.mouza + ': ' + e.message, 'err');
+    }).then(function () {
+      if (cb) cb.disabled = false;
+      render();
+    });
+  }
+
+  function disable(id) {
+    if (layers[id]) { map.removeLayer(layers[id]); delete layers[id]; }
+    render();
+  }
+
+  $('mouzaToggle').addEventListener('click', function () {
+    var body = $('mouzaBody'), open = body.style.display === 'none';
+    body.style.display = open ? 'block' : 'none';
+    $('mouzaChevron').textContent = open ? 'Hide ▴' : 'Show ▾';
+    if (open) loadCatalogue().catch(function () {
+      $('mouzaList').innerHTML = '<div class="empty-hint" style="padding:10px;">Could not load catalogue.</div>';
+    });
+  });
+  $('mouzaTehsil').addEventListener('change', function () { fillQh(); render(); });
+  $('mouzaQh').addEventListener('change', render);
+  $('mouzaSearch').addEventListener('input', render);
+})();
+</script>
 </body>
 </html>
