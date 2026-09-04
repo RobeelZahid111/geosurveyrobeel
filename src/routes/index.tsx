@@ -30,25 +30,30 @@ function Index() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const session = sessionData.session;
-      if (cancelled) return;
-      if (!session) {
-        navigate({ to: "/auth" });
-        return;
-      }
-      const { data } = await supabase
-        .from("subscriptions")
-        .select("*")
-        .eq("user_id", session.user.id)
-        .maybeSingle();
-      if (cancelled) return;
-      if (evaluateAccess(data as SubscriptionRow | null).entitled) {
-        window.location.replace("/survey/index.html");
-      } else {
-        navigate({ to: "/subscribe" });
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const session = sessionData.session;
+        if (cancelled) return;
+        if (!session) {
+          navigate({ to: "/auth" });
+          return;
+        }
+        const { data } = await supabase
+          .from("subscriptions")
+          .select("*")
+          .eq("user_id", session.user.id)
+          .maybeSingle();
+        if (cancelled) return;
+        if (evaluateAccess(data as SubscriptionRow | null).entitled) {
+          window.location.replace("/survey/index.html");
+        } else {
+          navigate({ to: "/subscribe" });
+        }
+      } catch {
+        if (!cancelled) navigate({ to: "/subscribe" });
       }
     })();
+
     return () => {
       cancelled = true;
     };
