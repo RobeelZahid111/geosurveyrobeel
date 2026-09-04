@@ -423,6 +423,26 @@
       <input type="file" id="importFile" accept=".json,.geojson,application/geo+json,application/json">
     </div>
 
+    <div class="section" id="mouzaSection">
+      <h2 id="mouzaToggle" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+        <span>Mouza Layers</span>
+        <span id="mouzaChevron" style="font-size:11px;color:var(--accent);">Show ▾</span>
+      </h2>
+      <div id="mouzaBody" style="display:none;">
+        <input type="text" id="mouzaSearch" placeholder="Search Tehsil / QH / Mouza…"
+               style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;margin-bottom:8px;">
+        <select id="mouzaTehsil" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;margin-bottom:6px;">
+          <option value="">All Tehsils</option>
+        </select>
+        <select id="mouzaQh" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;margin-bottom:8px;">
+          <option value="">All QH (Qanungo Halqa)</option>
+        </select>
+        <div id="mouzaList" style="max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:8px;">
+          <div class="empty-hint" style="padding:10px;">Loading Mouza catalogue…</div>
+        </div>
+      </div>
+    </div>
+
 
     <div class="section" style="border-bottom:none;padding-bottom:6px;">
       <h2>Features (<span id="featureCount">0</span>)</h2>
