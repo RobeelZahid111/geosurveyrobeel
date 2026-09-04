@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      mouza_layers: {
+        Row: {
+          created_at: string
+          district: string | null
+          feature_count: number | null
+          file_path: string
+          id: string
+          mouza: string
+          mouza_id: string
+          qh: string
+          tehsil: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          district?: string | null
+          feature_count?: number | null
+          file_path: string
+          id?: string
+          mouza: string
+          mouza_id: string
+          qh: string
+          tehsil: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          district?: string | null
+          feature_count?: number | null
+          file_path?: string
+          id?: string
+          mouza?: string
+          mouza_id?: string
+          qh?: string
+          tehsil?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
