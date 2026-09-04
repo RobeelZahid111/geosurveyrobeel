@@ -55,32 +55,43 @@ function SubscribePage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const session = sessionData.session;
-      if (!session) {
-        navigate({ to: "/auth" });
-        return;
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const session = sessionData.session;
+        if (cancelled) return;
+        if (!session) {
+          navigate({ to: "/auth" });
+          return;
+        }
+        setEmail(session.user.email ?? null);
+        try {
+          const { data } = await supabase
+            .from("subscriptions")
+            .select("*")
+            .eq("user_id", session.user.id)
+            .maybeSingle();
+          if (cancelled) return;
+          setAccess(evaluateAccess(data as SubscriptionRow | null));
+        } catch {
+          if (!cancelled) setAccess(evaluateAccess(null));
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      const { data } = await supabase
-        .from("subscriptions")
-        .select("*")
-        .eq("user_id", session.user.id)
-        .maybeSingle();
-      if (cancelled) return;
-      setEmail(session.user.email ?? null);
-      setAccess(evaluateAccess(data as SubscriptionRow | null));
+
+      // Admin check runs after the page is usable; never blocks loading.
       try {
         const r = await checkAdmin();
         if (!cancelled) setIsAdmin(r.isAdmin);
       } catch {
         /* not admin */
       }
-      setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
   }, [navigate]);
+
 
   async function signOut() {
     await supabase.auth.signOut();
