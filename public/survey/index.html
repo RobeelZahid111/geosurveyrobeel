@@ -2622,7 +2622,7 @@ placeholder="90, 60
     if (geoCache[id]) { addLayer(id, geoCache[id]); render(); return; }
     if (cb) cb.disabled = true;
     toast('Loading ' + rec.mouza + '…');
-    fetch(SB_URL + '/storage/v1/object/khasra-data/' + rec.file_path, {
+    fetch(SB_URL + '/storage/v1/object/khasra-data/' + rec.file_path.split('/').map(encodeURIComponent).join('/'), {
       headers: { apikey: SB_KEY, Authorization: 'Bearer ' + token() }
     }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
