@@ -2683,7 +2683,7 @@ placeholder="90, 60
   }
 
   function disable(id) {
-    if (layers[id]) { map.removeLayer(layers[id]); delete layers[id]; }
+    if (layers[id]) { map.removeLayer(layers[id]); delete layers[id]; refreshLabels(); }
     render();
   }
 
