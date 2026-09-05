@@ -2614,7 +2614,48 @@ placeholder="90, 60
     }).addTo(map);
     layers[id] = lyr;
     try { map.fitBounds(lyr.getBounds(), { maxZoom: 17 }); } catch (e) {}
+    refreshLabels();
   }
+
+  // ---- Always-visible khasra number labels (no click needed) ----
+  var labelLayer = L.layerGroup().addTo(map);
+  var LABEL_ZOOM = 16;
+  function khasraNum(p) {
+    p = p || {};
+    var v = p.Khasra !== undefined && p.Khasra !== null && p.Khasra !== '' ? p.Khasra : p.Khasra_ID;
+    return v === undefined || v === null ? '' : String(v);
+  }
+  function featureAnchor(f) {
+    if (f.__anchor) return f.__anchor;
+    var ll = null;
+    try { var c = turf.centerOfMass(f).geometry.coordinates; ll = [c[1], c[0]]; } catch (e) {}
+    if (!ll) {
+      try { var b = L.geoJSON(f).getBounds(); ll = b.getCenter(); } catch (e) { return null; }
+    }
+    f.__anchor = ll;
+    return ll;
+  }
+  function refreshLabels() {
+    labelLayer.clearLayers();
+    if (map.getZoom() < LABEL_ZOOM) return;
+    var b = map.getBounds();
+    var made = 0;
+    Object.keys(layers).forEach(function (id) {
+      layers[id].eachLayer(function (l) {
+        if (made >= 500) return;
+        var txt = khasraNum(l.feature && l.feature.properties);
+        if (!txt) return;
+        var ll = featureAnchor(l.feature);
+        if (!ll || !b.contains(ll)) return;
+        made++;
+        labelLayer.addLayer(L.marker(ll, {
+          interactive: false, keyboard: false, bubblingMouseEvents: false,
+          icon: L.divIcon({ className: 'khasra-lbl', html: txt })
+        }));
+      });
+    });
+  }
+  map.on('moveend zoomend', refreshLabels);
 
   function enable(id, cb) {
     var rec = catalogue.filter(function (r) { return r.mouza_id === id; })[0];
