@@ -2500,10 +2500,34 @@ placeholder="90, 60
   var SB_KEY = 'sb_publishable_MlB8GalNzsjBsGN1KVKBPw_P9Bntz0s';
   var AUTH_KEY = 'sb-dprgxkjqazuzrtjwjzer-auth-token';
 
-  function token() {
-    try { var s = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); return s && s.access_token; }
-    catch (e) { return null; }
+  function session() {
+    try { return JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch (e) { return null; }
   }
+  function token() { var s = session(); return s && s.access_token; }
+  // Returns a valid access token, refreshing it first when it has expired.
+  function freshToken() {
+    var s = session();
+    if (!s) return Promise.resolve(null);
+    var exp = s.expires_at ? s.expires_at * 1000 : 0;
+    if (exp && exp - Date.now() > 60000) return Promise.resolve(s.access_token);
+    if (!s.refresh_token) return Promise.resolve(s.access_token);
+    return fetch(SB_URL + '/auth/v1/token?grant_type=refresh_token', {
+      method: 'POST',
+      headers: { apikey: SB_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: s.refresh_token })
+    }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      if (!d || !d.access_token) return s.access_token;
+      var ns = JSON.parse(JSON.stringify(s));
+      ns.access_token = d.access_token;
+      ns.refresh_token = d.refresh_token || ns.refresh_token;
+      ns.expires_in = d.expires_in;
+      ns.expires_at = d.expires_at || Math.floor(Date.now() / 1000) + (d.expires_in || 3600);
+      if (d.user) ns.user = d.user;
+      try { localStorage.setItem(AUTH_KEY, JSON.stringify(ns)); } catch (e) {}
+      return ns.access_token;
+    }).catch(function () { return s.access_token; });
+  }
+
   function $(id) { return document.getElementById(id); }
   function toast(m, k) { if (window.appToast) window.appToast(m, k || 'ok'); }
 
