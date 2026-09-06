@@ -2565,10 +2565,13 @@ placeholder="90, 60
   }
 
   function api(path) {
-    return fetch(SB_URL + '/rest/v1/' + path, {
-      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + token() }
+    return freshToken().then(function (t) {
+      return fetch(SB_URL + '/rest/v1/' + path, {
+        headers: { apikey: SB_KEY, Authorization: 'Bearer ' + t }
+      });
     }).then(function (r) { return r.ok ? r.json() : []; });
   }
+
 
   function loadCatalogue() {
     if (loaded) return Promise.resolve();
