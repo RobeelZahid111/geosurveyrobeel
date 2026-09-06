@@ -447,6 +447,9 @@
         <div id="mouzaList" style="max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:8px;">
           <div class="empty-hint" style="padding:10px;">Loading Mouza catalogue…</div>
         </div>
+        <input type="text" id="khasraSearch" placeholder="Search Khasra number (e.g. 25/15)…"
+               style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;margin-top:8px;">
+        <div id="khasraResults" style="max-height:180px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-top:6px;display:none;"></div>
       </div>
     </div>
 
@@ -2705,6 +2708,62 @@ placeholder="90, 60
   $('mouzaTehsil').addEventListener('change', function () { fillQh(); render(); });
   $('mouzaQh').addEventListener('change', render);
   $('mouzaSearch').addEventListener('input', render);
+
+  // ---- Khasra number search: pan/zoom + highlight ----
+  var highlightLayer = null;
+  function clearHighlight() {
+    if (highlightLayer) { map.removeLayer(highlightLayer); highlightLayer = null; }
+  }
+  function normKhasra(v) {
+    return String(v === undefined || v === null ? '' : v)
+      .toLowerCase().replace(/[\s.\-_]/g, '/').replace(/\/+/g, '/').replace(/^\/|\/$/g, '');
+  }
+  function searchKhasra(term) {
+    var t = normKhasra(term);
+    var box = $('khasraResults');
+    if (!t) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    var out = [];
+    Object.keys(layers).forEach(function (id) {
+      var rec = catalogue.filter(function (r) { return r.mouza_id === id; })[0];
+      layers[id].eachLayer(function (l) {
+        if (out.length >= 60) return;
+        var p = l.feature && l.feature.properties;
+        var num = normKhasra(khasraNum(p));
+        if (num && (num === t || num.indexOf(t) === 0)) {
+          out.push({ layer: l, num: khasraNum(p), mouza: rec ? rec.mouza : (p && p.Mouza) || '' });
+        }
+      });
+    });
+    if (!out.length) {
+      box.style.display = 'block';
+      box.innerHTML = '<div class="empty-hint" style="padding:10px;">No match in enabled mouzas. Turn on a Mouza layer first.</div>';
+      return;
+    }
+    box.style.display = 'block';
+    box.innerHTML = out.map(function (o, i) {
+      return '<div data-kidx="' + i + '" style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer;">' +
+        '<strong>' + o.num + '</strong> <span style="color:#6b6a5f;">— ' + o.mouza + '</span></div>';
+    }).join('');
+    Array.prototype.forEach.call(box.querySelectorAll('[data-kidx]'), function (el) {
+      el.addEventListener('click', function () {
+        var o = out[+el.getAttribute('data-kidx')];
+        focusKhasra(o.layer);
+        box.style.display = 'none';
+      });
+    });
+  }
+  function focusKhasra(l) {
+    clearHighlight();
+    highlightLayer = L.geoJSON(l.feature, {
+      style: { color: '#e11d48', weight: 3, fillColor: '#e11d48', fillOpacity: 0.25 }
+    }).addTo(map);
+    try { map.fitBounds(l.getBounds(), { maxZoom: 18 }); } catch (e) {}
+    setTimeout(function () { try { l.openPopup(); } catch (e) {} }, 350);
+  }
+  $('khasraSearch').addEventListener('input', function () {
+    clearHighlight();
+    searchKhasra(this.value);
+  });
 })();
 </script>
 </body>
