@@ -2717,7 +2717,6 @@ placeholder="90, 60
       return r.arrayBuffer();
     }).then(function (buf) {
 
-    }).then(function (buf) {
       return parseAsync(buf, /\.gz$/i.test(rec.file_path));
     }).then(function (geo) {
       geoCache[id] = geo;
