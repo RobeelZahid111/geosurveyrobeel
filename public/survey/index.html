@@ -2700,11 +2700,23 @@ placeholder="90, 60
     if (geoCache[id]) { addLayer(id, geoCache[id]); render(); return; }
     if (cb) cb.disabled = true;
     toast('Loading ' + rec.mouza + '…');
-    fetch(SB_URL + '/storage/v1/object/khasra-data/' + rec.file_path.split('/').map(encodeURIComponent).join('/'), {
-      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + token() }
+    var url = SB_URL + '/storage/v1/object/khasra-data/' + rec.file_path.split('/').map(encodeURIComponent).join('/');
+    freshToken().then(function (t) {
+      return fetch(url, { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + t } });
+    }).then(function (r) {
+      if (r.status === 400 || r.status === 401) {
+        // Token was stale — force a refresh and retry once.
+        try { var s = session(); if (s) { s.expires_at = 0; localStorage.setItem(AUTH_KEY, JSON.stringify(s)); } } catch (e) {}
+        return freshToken().then(function (t2) {
+          return fetch(url, { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + t2 } });
+        });
+      }
+      return r;
     }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.arrayBuffer();
+    }).then(function (buf) {
+
     }).then(function (buf) {
       return parseAsync(buf, /\.gz$/i.test(rec.file_path));
     }).then(function (geo) {
