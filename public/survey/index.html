@@ -2561,6 +2561,10 @@ placeholder="90, 60
 
   function $(id) { return document.getElementById(id); }
   function toast(m, k) { if (window.appToast) window.appToast(m, k || 'ok'); }
+  function esc(s) {
+    return String(s === undefined || s === null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
 
   var catalogue = [];      // [{tehsil,qh,mouza,mouza_id,file_path,district}]
   var loaded = false;
