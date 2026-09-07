@@ -280,6 +280,37 @@
     white-space:nowrap;text-align:center;pointer-events:none;
     transform:translate(-50%,-50%);
   }
+
+  /* Mouza Layers accordion tree */
+  .mz-tree{font-size:12px;padding:4px;}
+  .mz-group{margin-bottom:6px;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff;}
+  .mz-header{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:8px 10px;background:#fbfaf5;cursor:pointer;font-weight:600;font-size:13px;
+    border-bottom:1px solid var(--border);user-select:none;
+  }
+  .mz-header:hover{background:#f0eee2;}
+  .mz-header .chev{font-size:11px;color:var(--accent);}
+  .mz-header .count{font-size:10px;color:#8a8873;font-weight:400;white-space:nowrap;}
+  .mz-children{padding:4px 4px 4px 14px;background:#fff;display:none;}
+  .mz-children.open{display:block;}
+  .mz-qh{margin-bottom:3px;}
+  .mz-qh-header{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:6px 8px;background:#f8f7f0;cursor:pointer;font-weight:600;font-size:12px;
+    border-radius:6px;margin-bottom:2px;user-select:none;
+  }
+  .mz-qh-header:hover{background:#eeecdf;}
+  .mz-qh-children{padding:2px 0 2px 10px;}
+  .mz-item{
+    display:flex;gap:8px;align-items:flex-start;padding:6px 8px;
+    border-bottom:1px solid #f0eee2;font-size:12px;cursor:pointer;
+  }
+  .mz-item:last-child{border-bottom:none;}
+  .mz-item:hover{background:#f8f7f0;}
+  .mz-item input{margin-top:2px;flex-shrink:0;}
+  .mz-item .meta{line-height:1.35;min-width:0;}
+  .mz-item .meta strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;}
 </style>
 
 <script>
@@ -2530,11 +2561,16 @@ placeholder="90, 60
 
   function $(id) { return document.getElementById(id); }
   function toast(m, k) { if (window.appToast) window.appToast(m, k || 'ok'); }
+  function esc(s) {
+    return String(s === undefined || s === null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
 
   var catalogue = [];      // [{tehsil,qh,mouza,mouza_id,file_path,district}]
   var loaded = false;
   var geoCache = {};       // mouza_id -> geojson (session memory cache)
   var layers = {};         // mouza_id -> L.GeoJSON
+  var treeState = { tehsil: {}, qh: {} }; // accordion expand/collapse state
   var worker = null, seq = 0, pending = {};
 
   function getWorker() {
@@ -2609,6 +2645,20 @@ placeholder="90, 60
     return (r.tehsil + ' ' + r.qh + ' ' + r.mouza + ' ' + (r.district || '')).toLowerCase().indexOf(s) !== -1;
   }
 
+  function groupRows(rows) {
+    var map = {};
+    rows.forEach(function (r) {
+      var t = r.tehsil || 'Unknown Tehsil';
+      var q = r.qh || 'Unknown QH';
+      if (!map[t]) map[t] = {};
+      if (!map[t][q]) map[t][q] = [];
+      map[t][q].push(r);
+    });
+    return map;
+  }
+  function toggleTehsil(t) { treeState.tehsil[t] = !treeState.tehsil[t]; render(); }
+  function toggleQh(q) { treeState.qh[q] = !treeState.qh[q]; render(); }
+
   function render() {
     var box = $('mouzaList');
     if (!loaded) { box.innerHTML = '<div class="empty-hint" style="padding:10px;">Loading Mouza catalogue…</div>'; return; }
@@ -2618,12 +2668,48 @@ placeholder="90, 60
     }
     var rows = catalogue.filter(matches).slice(0, 400);
     if (!rows.length) { box.innerHTML = '<div class="empty-hint" style="padding:10px;">No match.</div>'; return; }
-    box.innerHTML = rows.map(function (r) {
-      var on = !!layers[r.mouza_id];
-      return '<label style="display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer;">' +
-        '<input type="checkbox" data-mouza="' + r.mouza_id + '"' + (on ? ' checked' : '') + ' style="margin-top:2px;">' +
-        '<span><strong>' + r.mouza + '</strong><br><span style="color:#6b6a5f;">' + r.tehsil + ' › ' + r.qh + '</span></span></label>';
-    }).join('');
+    var searching = !!($('mouzaSearch').value || '').trim();
+    var groups = groupRows(rows);
+    var tehsils = Object.keys(groups).sort();
+    box.innerHTML = '<div class="mz-tree">' + tehsils.map(function (t) {
+      var qhMap = groups[t];
+      var qhs = Object.keys(qhMap).sort();
+      var tOpen = searching || !!treeState.tehsil[t];
+      var tCount = rows.filter(function (r) { return r.tehsil === t; }).length;
+      return '<div class="mz-group">' +
+        '<div class="mz-header" data-tehsil="' + esc(t) + '">' +
+          '<span>' + esc(t) + '</span>' +
+          '<span class="count">' + tCount + ' mouza' + (tCount > 1 ? 's' : '') + ' <span class="chev">' + (tOpen ? '▴' : '▾') + '</span></span>' +
+        '</div>' +
+        '<div class="mz-children' + (tOpen ? ' open' : '') + '">' +
+          qhs.map(function (q) {
+            var qOpen = searching || !!treeState.qh[q];
+            var qCount = qhMap[q].length;
+            return '<div class="mz-qh">' +
+              '<div class="mz-qh-header" data-qh="' + esc(q) + '">' +
+                '<span>' + esc(q) + '</span>' +
+                '<span class="count">' + qCount + ' <span class="chev">' + (qOpen ? '▴' : '▾') + '</span></span>' +
+              '</div>' +
+              '<div class="mz-qh-children mz-children' + (qOpen ? ' open' : '') + '">' +
+                qhMap[q].map(function (r) {
+                  var on = !!layers[r.mouza_id];
+                  return '<label class="mz-item">' +
+                    '<input type="checkbox" data-mouza="' + r.mouza_id + '"' + (on ? ' checked' : '') + '>' +
+                    '<span class="meta"><strong>' + esc(r.mouza) + '</strong></span></label>';
+                }).join('') +
+              '</div>' +
+            '</div>';
+          }).join('') +
+        '</div>' +
+      '</div>';
+    }).join('') + '</div>';
+
+    Array.prototype.forEach.call(box.querySelectorAll('[data-tehsil]'), function (h) {
+      h.addEventListener('click', function () { toggleTehsil(h.getAttribute('data-tehsil')); });
+    });
+    Array.prototype.forEach.call(box.querySelectorAll('[data-qh]'), function (h) {
+      h.addEventListener('click', function () { toggleQh(h.getAttribute('data-qh')); });
+    });
     Array.prototype.forEach.call(box.querySelectorAll('input[data-mouza]'), function (cb) {
       cb.addEventListener('change', function () {
         var id = cb.getAttribute('data-mouza');
