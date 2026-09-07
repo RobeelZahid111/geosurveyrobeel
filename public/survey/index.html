@@ -2566,6 +2566,7 @@ placeholder="90, 60
   var loaded = false;
   var geoCache = {};       // mouza_id -> geojson (session memory cache)
   var layers = {};         // mouza_id -> L.GeoJSON
+  var treeState = { tehsil: {}, qh: {} }; // accordion expand/collapse state
   var worker = null, seq = 0, pending = {};
 
   function getWorker() {
