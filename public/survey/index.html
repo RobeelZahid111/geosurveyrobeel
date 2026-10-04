@@ -2172,7 +2172,10 @@ placeholder="90, 60
   @keyframes toastIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;} }
 
   @media (max-width:768px){
-    #toolDock{ top:auto; bottom:64px; left:6px; right:6px; }
+    #toolDock{
+      top:calc(102px + env(safe-area-inset-top)); bottom:auto; left:6px; right:6px;
+      padding-right:46px;
+    }
     #fabStack{ top:auto; bottom:132px; left:10px; max-height:46vh; overflow:auto; }
     #toastWrap{ bottom:130px; }
     .tool-grid .btn{ min-height:64px; font-size:11px; }
@@ -2407,28 +2410,29 @@ placeholder="90, 60
     background:var(--panel,#fff); border:1px solid var(--border);
     border-radius:12px; width:42px; height:42px; padding:0; font-size:19px;
     color:var(--line-dark); box-shadow:0 4px 14px rgba(16,26,32,.18); cursor:pointer;
-    right:10px; bottom:64px;
+    right:10px; top:110px;
   }
-  #dockToggle[aria-expanded="true"]{ background:var(--line-dark); color:var(--panel,#fff); }
+  #dockToggle[aria-expanded="true"]{ display:none; }
   #toolDock.dock-hidden{ display:none !important; }
+  #dockClose{
+    position:sticky; right:0; flex:0 0 34px; align-self:stretch;
+    display:flex; align-items:center; justify-content:center;
+    border:0; border-left:1px solid var(--border); background:var(--panel,#fff);
+    color:var(--line-dark); font-size:20px; cursor:pointer;
+  }
   @media (max-width:768px){
     #dockToggle{
-      position:fixed !important;
-      z-index:5000 !important;
+      position:absolute !important;
+      z-index:1300 !important;
       right:max(10px, env(safe-area-inset-right));
-      bottom:calc(138px + env(safe-area-inset-bottom));
-      width:46px; height:46px; min-width:46px; min-height:46px;
+      top:calc(102px + env(safe-area-inset-top)); bottom:auto;
+      width:42px; height:42px; min-width:42px; min-height:42px;
       padding:0; font-size:20px;
-      border:2px solid var(--line-dark);
+      border:1px solid var(--line-dark);
       background:var(--panel,#fff);
-      box-shadow:0 6px 20px rgba(16,26,32,.32);
+      box-shadow:0 4px 14px rgba(16,26,32,.24);
       visibility:visible; pointer-events:auto;
       touch-action:manipulation;
-    }
-    #dockToggle[aria-expanded="true"]{
-      background:var(--line-dark);
-      color:var(--panel,#fff);
-      border-color:var(--line-dark);
     }
   }
 </style>
@@ -2448,23 +2452,37 @@ placeholder="90, 60
   var toggle = document.createElement('button');
   toggle.id = 'dockToggle';
   toggle.type = 'button';
-  toggle.innerHTML = '<span aria-hidden="true">⌄</span>';
+  toggle.innerHTML = '<span aria-hidden="true">☰</span>';
   wrap.appendChild(toggle);
+
+  var close = document.createElement('button');
+  close.id = 'dockClose';
+  close.type = 'button';
+  close.innerHTML = '<span aria-hidden="true">×</span>';
+  close.setAttribute('aria-label', 'Hide quick tools');
+  close.title = 'Hide quick tools';
+  dock.appendChild(close);
 
   var open   = localStorage.getItem('sgb_dock_open') !== '0';
   localStorage.removeItem('sgb_dock_pinned');
 
   function render(){
     dock.classList.toggle('dock-hidden', !open);
-    toggle.innerHTML = '<span aria-hidden="true">' + (open ? '⌄' : '☰') + '</span>';
+    toggle.innerHTML = '<span aria-hidden="true">☰</span>';
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     toggle.setAttribute('aria-label', open ? 'Hide quick tools' : 'Show quick tools');
     toggle.title = open ? 'Hide quick tools' : 'Show quick tools';
   }
 
   toggle.addEventListener('click', function(){
-    open = !open;
-    localStorage.setItem('sgb_dock_open', open ? '1' : '0');
+    open = true;
+    localStorage.setItem('sgb_dock_open', '1');
+    render();
+  });
+
+  close.addEventListener('click', function(){
+    open = false;
+    localStorage.setItem('sgb_dock_open', '0');
     render();
   });
 
