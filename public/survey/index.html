@@ -2387,7 +2387,7 @@ placeholder="90, 60
 </script>
 
 <style>
-  /* ---------- v19: basemap control below compass + hide/pin tool dock ---------- */
+  /* ---------- basemap control below compass + compact quick tools toggle ---------- */
   .leaflet-top.leaflet-right{
     top:calc(58px + env(safe-area-inset-top)) !important;
   }
@@ -2403,57 +2403,29 @@ placeholder="90, 60
 
   #dockToggle{
     position:absolute; z-index:1300;
-    display:flex; align-items:center; gap:6px;
-    background:var(--panel,#fff); border:1px solid var(--border);
-    border-radius:12px; padding:7px 11px; font-size:12px; font-weight:600;
-    color:var(--line-dark); box-shadow:0 4px 14px rgba(16,26,32,.18); cursor:pointer;
-    right:10px; bottom:10px;
-  }
-  #dockPin{
-    position:absolute; z-index:1300;
-    right:10px; bottom:52px;
-    width:38px; height:38px; border-radius:12px;
-    background:var(--panel,#fff); border:1px solid var(--border);
-    box-shadow:0 4px 14px rgba(16,26,32,.18);
-    cursor:pointer; font-size:16px; line-height:1;
     display:flex; align-items:center; justify-content:center;
-    color:var(--line-dark); opacity:.85;
+    background:var(--panel,#fff); border:1px solid var(--border);
+    border-radius:12px; width:42px; height:42px; padding:0; font-size:19px;
+    color:var(--line-dark); box-shadow:0 4px 14px rgba(16,26,32,.18); cursor:pointer;
+    right:10px; bottom:64px;
   }
-  #dockPin.pinned{ opacity:1; background:rgba(47,191,155,.18); border-color:#2fbf9b; }
+  #dockToggle[aria-expanded="true"]{ background:var(--line-dark); color:var(--panel,#fff); }
   #toolDock.dock-hidden{ display:none !important; }
   @media (max-width:768px){
     #dockToggle{
       position:fixed !important;
       z-index:5000 !important;
       right:max(10px, env(safe-area-inset-right));
-      bottom:calc(142px + env(safe-area-inset-bottom));
-      min-width:82px; min-height:44px;
-      justify-content:center;
-      padding:8px 10px; font-size:11px;
+      bottom:calc(138px + env(safe-area-inset-bottom));
+      width:46px; height:46px; min-width:46px; min-height:46px;
+      padding:0; font-size:20px;
       border:2px solid var(--line-dark);
       background:var(--panel,#fff);
       box-shadow:0 6px 20px rgba(16,26,32,.32);
       visibility:visible; pointer-events:auto;
       touch-action:manipulation;
     }
-    #dockPin{
-      position:fixed !important;
-      z-index:5000 !important;
-      right:max(12px, env(safe-area-inset-right));
-      bottom:calc(194px + env(safe-area-inset-bottom));
-      width:44px; height:44px; min-width:44px; min-height:44px;
-      border:2px solid var(--line-dark);
-      border-radius:12px;
-      background:var(--panel,#fff);
-      color:var(--line-dark);
-      box-shadow:0 6px 20px rgba(16,26,32,.32);
-      opacity:1;
-      font-size:20px;
-      visibility:visible;
-      pointer-events:auto;
-      touch-action:manipulation;
-    }
-    #dockPin.pinned{
+    #dockToggle[aria-expanded="true"]{
       background:var(--line-dark);
       color:var(--panel,#fff);
       border-color:var(--line-dark);
@@ -2472,52 +2444,28 @@ placeholder="90, 60
     if (lc) lc.classList.add('leaflet-control-layers-collapsed');
   }catch(e){}
 
-  /* pin button floating above the toggle */
-  var pin = document.createElement('button');
-  pin.id = 'dockPin';
-  pin.type = 'button';
-  pin.title = 'Pin tools (keep open)';
-  wrap.appendChild(pin);
-
-  /* show/hide toggle */
+  /* compact side hub for the bottom tools */
   var toggle = document.createElement('button');
   toggle.id = 'dockToggle';
   toggle.type = 'button';
-  toggle.innerHTML = '<span aria-hidden="true">👁</span><span id="dockToggleLabel">Hide</span>';
+  toggle.innerHTML = '<span aria-hidden="true">⌄</span>';
   wrap.appendChild(toggle);
 
-  var pinned = localStorage.getItem('sgb_dock_pinned') === '1';
   var open   = localStorage.getItem('sgb_dock_open') !== '0';
+  localStorage.removeItem('sgb_dock_pinned');
 
   function render(){
-    dock.classList.toggle('dock-hidden', !(open || pinned));
-    pin.textContent = '📌';
-    pin.classList.toggle('pinned', pinned);
-    pin.setAttribute('aria-label', pinned ? 'Unpin tools' : 'Pin tools');
-    pin.title = pinned ? 'Unpin tools' : 'Pin tools (keep open)';
-    var lbl = document.getElementById('dockToggleLabel');
-    if (lbl) lbl.textContent = (open || pinned) ? 'Hide' : 'Show';
+    dock.classList.toggle('dock-hidden', !open);
+    toggle.innerHTML = '<span aria-hidden="true">' + (open ? '⌄' : '☰') + '</span>';
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    toggle.setAttribute('aria-label', open ? 'Hide quick tools' : 'Show quick tools');
+    toggle.title = open ? 'Hide quick tools' : 'Show quick tools';
   }
 
   toggle.addEventListener('click', function(){
-    if (pinned){
-      pinned = false;
-      localStorage.setItem('sgb_dock_pinned','0');
-      open = false;
-    } else {
-      open = !open;
-    }
+    open = !open;
     localStorage.setItem('sgb_dock_open', open ? '1' : '0');
     render();
-  });
-
-  pin.addEventListener('click', function(ev){
-    ev.stopPropagation();
-    pinned = !pinned;
-    localStorage.setItem('sgb_dock_pinned', pinned ? '1' : '0');
-    if (pinned){ open = true; localStorage.setItem('sgb_dock_open','1'); }
-    render();
-    if (window.appToast) window.appToast(pinned ? 'Tools pinned' : 'Tools unpinned', 'ok');
   });
 
   render();
