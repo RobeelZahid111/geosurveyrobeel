@@ -654,8 +654,16 @@ placeholder="90, 60
     attribution: '&copy; Google', maxZoom: 21, maxNativeZoom: 20,
     subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
   });
+  const faisalabad = L.tileLayer('https://dmaps.pulse.gop.pk/38D/{z}/{x}/{y}.png', {
+    attribution: 'Faisalabad &copy; PULSE Punjab', maxZoom: 19, maxNativeZoom: 19
+  });
 
-  L.control.layers({ "Street": street, "Google Hybrid": satellite, "Google Satellite": satelliteOnly }).addTo(map);
+  L.control.layers({
+    "Street": street,
+    "Google Hybrid": satellite,
+    "Google Satellite": satelliteOnly,
+    "Faisalabad": faisalabad
+  }).addTo(map);
   satellite.addTo(map);
 
   const drawnItems = new L.FeatureGroup();
