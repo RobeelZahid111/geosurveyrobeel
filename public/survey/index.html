@@ -1107,7 +1107,9 @@ placeholder="90, 60
     drawingVertexLayer.clearLayers();
     requestAnimationFrame(styleActiveDrawLine);
   });
-  map.on('draw:drawvertex', refreshDrawingVertexNumbers);
+  map.on('draw:drawvertex', (e) => {
+    requestAnimationFrame(() => refreshDrawingVertexNumbers(e));
+  });
   map.on('draw:drawstop', () => {
     undoFab.style.display = 'none';
     drawingVertexLayer.clearLayers();
