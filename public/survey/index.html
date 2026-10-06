@@ -1093,7 +1093,10 @@ placeholder="90, 60
   }
   function refreshDrawingVertexNumbers(e) {
     drawingVertexLayer.clearLayers();
-    const markers = e && e.layers && e.layers.getLayers ? e.layers.getLayers() : [];
+    const handler = activeDrawHandler();
+    const markers = handler && Array.isArray(handler._markers)
+      ? handler._markers
+      : (e && e.layers && e.layers.getLayers ? e.layers.getLayers() : []);
     markers.forEach((marker, index) => {
       if (marker.getLatLng) numberedVertex(marker.getLatLng(), index + 1, drawingVertexLayer);
     });
