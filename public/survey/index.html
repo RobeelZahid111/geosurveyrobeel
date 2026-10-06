@@ -96,6 +96,23 @@
     font-weight:700;font-size:11px;border-radius:3px;box-shadow:none !important;padding:2px 5px;
   }
   .length-tooltip::before{display:none;}
+  .vertex-number-tooltip{
+    background:#e5242b !important;color:#fff !important;border:2px solid #fff !important;
+    width:24px;height:24px;padding:0 !important;border-radius:1px !important;
+    font-size:12px;font-weight:800;line-height:20px;text-align:center;
+    box-shadow:0 1px 4px rgba(0,0,0,.45) !important;
+  }
+  .vertex-number-tooltip::before{display:none !important;}
+  .drawing-vertex-number{
+    display:flex;align-items:center;justify-content:center;width:24px;height:24px;
+    background:#e5242b;color:#fff;border:2px solid #fff;font-size:12px;font-weight:800;
+    line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.45);
+  }
+  .leaflet-draw-guide-dash{background-color:#e85d2f !important;width:9px !important;height:4px !important;border-radius:3px;}
+  .live-location-dot{
+    width:18px;height:18px;border-radius:50%;background:#078bc7;border:3px solid #fff;
+    box-shadow:0 0 0 2px rgba(7,139,199,.35),0 2px 6px rgba(0,0,0,.35);
+  }
 
   #mapWrap{flex:1;position:relative;}
   #map{width:100%;height:100%;}
@@ -405,6 +422,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
           My GPS location
         </button>
+        <button class="btn" id="liveLocateBtn" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></svg>
+          Live GPS
+        </button>
         <button class="btn" id="gotoLLBtn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z"/><circle cx="12" cy="9" r="2"/></svg>
           Go to Lat / Lng
@@ -696,6 +717,10 @@ placeholder="90, 60
 
   const measurementLayer = new L.LayerGroup();
   map.addLayer(measurementLayer);
+  const vertexNumberLayer = new L.LayerGroup();
+  map.addLayer(vertexNumberLayer);
+  const drawingVertexLayer = new L.LayerGroup();
+  map.addLayer(drawingVertexLayer);
 
   let idCounter = 1;
   let pendingLayer = null;
@@ -827,6 +852,7 @@ placeholder="90, 60
 
   function refreshList() {
     updateMeasurements();
+    updateVertexNumbers();
     const listEl = document.getElementById('featureList');
     const layers = [];
     drawnItems.eachLayer(l => layers.push(l));
@@ -970,6 +996,30 @@ placeholder="90, 60
     });
   }
 
+  function flatVertexLatLngs(layer) {
+    if (!(layer instanceof L.Polyline)) return [];
+    let latlngs = layer.getLatLngs();
+    while (Array.isArray(latlngs[0]) && Array.isArray(latlngs[0][0])) latlngs = latlngs[0];
+    if (Array.isArray(latlngs[0]) && !(latlngs[0] instanceof L.LatLng)) latlngs = latlngs[0];
+    return Array.isArray(latlngs) ? latlngs : [];
+  }
+
+  function numberedVertex(latlng, number, targetLayer) {
+    const marker = L.circleMarker(latlng, { radius: 0, opacity: 0, fillOpacity: 0, interactive: false })
+      .bindTooltip(String(number), {
+        permanent: true, direction: 'center', className: 'vertex-number-tooltip', opacity: 1
+      });
+    marker.addTo(targetLayer);
+  }
+
+  function updateVertexNumbers() {
+    vertexNumberLayer.clearLayers();
+    drawnItems.eachLayer(layer => {
+      if (!(layer instanceof L.Polyline)) return;
+      flatVertexLatLngs(layer).forEach((latlng, index) => numberedVertex(latlng, index + 1, vertexNumberLayer));
+    });
+  }
+
   function openPropsModal(layer) {
     pendingLayer = layer;
     const props = layer.feature_props || {};
@@ -1031,8 +1081,44 @@ placeholder="90, 60
 
   // ---------- Undo button ----------
   const undoFab = document.getElementById('undoFab');
-  map.on('draw:drawstart', () => { undoFab.style.display = 'flex'; });
-  map.on('draw:drawstop', () => { undoFab.style.display = 'none'; });
+  function activeDrawHandler() {
+    const toolbar = drawControl._toolbars && drawControl._toolbars.draw;
+    return toolbar && toolbar._activeMode && toolbar._activeMode.handler;
+  }
+  function styleActiveDrawLine() {
+    const handler = activeDrawHandler();
+    if (handler && handler._poly && handler._poly.setStyle) {
+      handler._poly.setStyle({ color: '#e85d2f', weight: 4, dashArray: '10 8', opacity: .95 });
+    }
+  }
+  function refreshDrawingVertexNumbers(e) {
+    drawingVertexLayer.clearLayers();
+    const handler = activeDrawHandler();
+    const activeLatLngs = handler && handler._poly && handler._poly.getLatLngs
+      ? handler._poly.getLatLngs()
+      : [];
+    if (activeLatLngs.length) {
+      activeLatLngs.forEach((latlng, index) => numberedVertex(latlng, index + 1, drawingVertexLayer));
+    } else {
+      const markers = e && e.layers && e.layers.getLayers ? e.layers.getLayers() : [];
+      markers.forEach((marker, index) => {
+        if (marker.getLatLng) numberedVertex(marker.getLatLng(), index + 1, drawingVertexLayer);
+      });
+    }
+    styleActiveDrawLine();
+  }
+  map.on('draw:drawstart', () => {
+    undoFab.style.display = 'flex';
+    drawingVertexLayer.clearLayers();
+    requestAnimationFrame(styleActiveDrawLine);
+  });
+  map.on('draw:drawvertex', (e) => {
+    requestAnimationFrame(() => refreshDrawingVertexNumbers(e));
+  });
+  map.on('draw:drawstop', () => {
+    undoFab.style.display = 'none';
+    drawingVertexLayer.clearLayers();
+  });
 
   function undoLastPoint() {
     const tb = drawControl._toolbars && drawControl._toolbars.draw;
@@ -1842,6 +1928,61 @@ placeholder="90, 60
   }
 
   // ---------- Location ----------
+  let liveLocationWatch = null;
+  let liveLocationMarker = null;
+  let liveAccuracyCircle = null;
+  const liveLocateBtn = document.getElementById('liveLocateBtn');
+
+  function renderLiveLocation(pos, follow) {
+    const { latitude, longitude, accuracy } = pos.coords;
+    const latlng = L.latLng(latitude, longitude);
+    if (!liveLocationMarker) {
+      liveLocationMarker = L.marker(latlng, {
+        zIndexOffset: 2000,
+        icon: L.divIcon({ className: '', html: '<div class="live-location-dot"></div>', iconSize: [18, 18], iconAnchor: [9, 9] })
+      }).addTo(map).bindPopup('Live GPS location');
+      liveAccuracyCircle = L.circle(latlng, {
+        radius: accuracy, color: '#078bc7', weight: 1.5, fillColor: '#078bc7', fillOpacity: .1, interactive: false
+      }).addTo(map);
+    } else {
+      liveLocationMarker.setLatLng(latlng);
+      liveAccuracyCircle.setLatLng(latlng).setRadius(accuracy);
+    }
+    if (follow) map.setView(latlng, Math.max(map.getZoom(), 18));
+    document.getElementById('coordsStatus').textContent =
+      `Live: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}  ±${Math.round(accuracy)} m`;
+  }
+
+  function stopLiveLocation() {
+    if (liveLocationWatch !== null) navigator.geolocation.clearWatch(liveLocationWatch);
+    liveLocationWatch = null;
+    liveLocateBtn.classList.remove('primary');
+    liveLocateBtn.setAttribute('aria-pressed', 'false');
+    liveLocateBtn.lastChild.textContent = ' Live GPS';
+    document.querySelectorAll('#toolDock .dock-btn[data-source="liveLocateBtn"]').forEach(btn => btn.classList.remove('active'));
+  }
+
+  liveLocateBtn.onclick = function () {
+    if (liveLocationWatch !== null) {
+      stopLiveLocation();
+      document.getElementById('coordsStatus').textContent = 'Live GPS stopped';
+      return;
+    }
+    if (!navigator.geolocation) { alert('Geolocation not supported.'); return; }
+    liveLocateBtn.classList.add('primary');
+    liveLocateBtn.setAttribute('aria-pressed', 'true');
+    liveLocateBtn.lastChild.textContent = ' Stop live GPS';
+    document.getElementById('coordsStatus').textContent = 'Starting live GPS…';
+    let firstFix = true;
+    liveLocationWatch = navigator.geolocation.watchPosition(pos => {
+      renderLiveLocation(pos, firstFix);
+      firstFix = false;
+    }, err => {
+      stopLiveLocation();
+      alert('Could not track location: ' + err.message);
+    }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 });
+  };
+
   document.getElementById('locateBtn').onclick = function () {
     if (!navigator.geolocation) { alert('Geolocation not supported.'); return; }
     document.getElementById('coordsStatus').textContent = 'Locating...';
@@ -2226,6 +2367,7 @@ placeholder="90, 60
   try {
     var TOOLS = [
       { id: 'locateBtn', label: 'GPS' },
+      { id: 'liveLocateBtn', label: 'Live' },
       { id: 'gotoLLBtn', label: 'Lat/Lng' },
       { id: 'searchBtn', label: 'Search' },
       { sep: true },
@@ -2251,6 +2393,7 @@ placeholder="90, 60
       var b = document.createElement('button');
       b.type = 'button';
       b.className = 'dock-btn' + (t.danger ? ' danger' : '');
+      b.setAttribute('data-source', t.id);
       b.title = (src.textContent || t.label).trim();
       b.innerHTML = (svg ? svg.outerHTML : '') + '<span></span>';
       b.querySelector('span').textContent = t.label;
