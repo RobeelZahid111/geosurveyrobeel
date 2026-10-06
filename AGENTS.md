@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Keep map drawing annotations and live GPS tracking client-side in the survey PWA because they depend on Leaflet state and browser geolocation.
