@@ -1094,12 +1094,17 @@ placeholder="90, 60
   function refreshDrawingVertexNumbers(e) {
     drawingVertexLayer.clearLayers();
     const handler = activeDrawHandler();
-    const markers = handler && Array.isArray(handler._markers)
-      ? handler._markers
-      : (e && e.layers && e.layers.getLayers ? e.layers.getLayers() : []);
-    markers.forEach((marker, index) => {
-      if (marker.getLatLng) numberedVertex(marker.getLatLng(), index + 1, drawingVertexLayer);
-    });
+    const activeLatLngs = handler && handler._poly && handler._poly.getLatLngs
+      ? handler._poly.getLatLngs()
+      : [];
+    if (activeLatLngs.length) {
+      activeLatLngs.forEach((latlng, index) => numberedVertex(latlng, index + 1, drawingVertexLayer));
+    } else {
+      const markers = e && e.layers && e.layers.getLayers ? e.layers.getLayers() : [];
+      markers.forEach((marker, index) => {
+        if (marker.getLatLng) numberedVertex(marker.getLatLng(), index + 1, drawingVertexLayer);
+      });
+    }
     styleActiveDrawLine();
   }
   map.on('draw:drawstart', () => {
