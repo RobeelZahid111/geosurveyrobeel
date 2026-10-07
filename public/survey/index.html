@@ -108,6 +108,12 @@
     background:#e5242b;color:#fff;border:2px solid #fff;font-size:10px;font-weight:800;
     line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.4);
   }
+  .length-tooltip,.vertex-number-tooltip,.area-tooltip{pointer-events:none !important;}
+  .sgb-editing .vertex-number-tooltip{margin-left:15px;margin-top:-15px;width:15px;height:15px;font-size:9px;line-height:11px;opacity:.85;}
+  .sgb-editing .length-tooltip{font-size:9px;padding:1px 3px;opacity:.75;}
+  .leaflet-editing-icon.sgb-vertex-selected{background:#ffd400 !important;border:3px solid #e5242b !important;box-shadow:0 0 0 4px rgba(255,212,0,.45) !important;}
+  #vertexDeleteBtn{position:absolute;z-index:1200;left:50%;transform:translateX(-50%);bottom:70px;display:none;
+    background:#e5242b;color:#fff;border:2px solid #fff;border-radius:22px;padding:9px 16px;font-weight:700;font-size:13px;box-shadow:0 3px 10px rgba(0,0,0,.35);}
   .leaflet-draw-guide-dash{background-color:#e85d2f !important;width:4px !important;height:2px !important;border-radius:2px;}
   .live-location-dot{
     width:18px;height:18px;border-radius:50%;background:#078bc7;border:3px solid #fff;
@@ -1122,6 +1128,51 @@ placeholder="90, 60
   map.on('draw:drawvertex', (e) => {
     requestAnimationFrame(() => refreshDrawingVertexNumbers(e));
   });
+  // ---- Pan/pinch should never add a vertex while drawing ----
+  (function guardDrawTaps(){
+    const box = map.getContainer();
+    let start = null, moved = false, touches = 0;
+    box.addEventListener('pointerdown', (ev) => { touches++; if (touches === 1) { start = [ev.clientX, ev.clientY]; moved = false; } else moved = true; }, true);
+    box.addEventListener('pointermove', (ev) => { if (start && Math.hypot(ev.clientX - start[0], ev.clientY - start[1]) > 8) moved = true; }, true);
+    const up = () => { touches = Math.max(0, touches - 1); };
+    box.addEventListener('pointerup', up, true); box.addEventListener('pointercancel', () => { touches = 0; moved = true; }, true);
+    box.addEventListener('touchstart', (ev) => { if (ev.touches.length > 1) moved = true; }, { capture: true, passive: true });
+    map.on('movestart zoomstart', () => { if (start) moved = true; });
+    const P = L.Draw.Polyline.prototype;
+    const origEnd = P._endPoint, origTouch = P._onTouch;
+    P._endPoint = function () { if (moved) { this._mouseDownOrigin = null; return; } return origEnd.apply(this, arguments); };
+    if (origTouch) P._onTouch = function () { if (moved) return; return origTouch.apply(this, arguments); };
+  })();
+
+  // ---- Edit mode: tap selects a vertex; delete via button ----
+  (function vertexSelect(){
+    const btn = document.createElement('button');
+    btn.id = 'vertexDeleteBtn'; btn.type = 'button'; btn.textContent = '🗑 Delete vertex';
+    map.getContainer().parentNode.appendChild(btn);
+    let sel = null;
+    const clear = () => { if (sel && sel.marker._icon) L.DomUtil.removeClass(sel.marker._icon, 'sgb-vertex-selected'); sel = null; btn.style.display = 'none'; };
+    const E = L.Edit.PolyVerticesEdit.prototype;
+    const origClick = E._onMarkerClick;
+    E._onMarkerClick = function (e) {
+      const marker = e.target;
+      if (sel && sel.marker === marker) { clear(); return; }
+      clear();
+      sel = { handler: this, marker };
+      if (marker._icon) L.DomUtil.addClass(marker._icon, 'sgb-vertex-selected');
+      btn.style.display = 'block';
+    };
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (!sel) return;
+      const { handler, marker } = sel; clear();
+      origClick.call(handler, { target: marker });
+      refreshList();
+    });
+    map.on('draw:editstart', () => L.DomUtil.addClass(map.getContainer(), 'sgb-editing'));
+    map.on('draw:editstop', () => { clear(); L.DomUtil.removeClass(map.getContainer(), 'sgb-editing'); });
+    map.on('click', clear);
+  })();
+
   map.on('draw:drawstop', () => {
     undoFab.style.display = 'none';
     drawingVertexLayer.clearLayers();
