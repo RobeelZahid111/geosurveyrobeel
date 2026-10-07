@@ -98,17 +98,17 @@
   .length-tooltip::before{display:none;}
   .vertex-number-tooltip{
     background:#e5242b !important;color:#fff !important;border:2px solid #fff !important;
-    width:24px;height:24px;padding:0 !important;border-radius:1px !important;
-    font-size:12px;font-weight:800;line-height:20px;text-align:center;
-    box-shadow:0 1px 4px rgba(0,0,0,.45) !important;
+    width:18px;height:18px;padding:0 !important;border-radius:1px !important;
+    font-size:10px;font-weight:800;line-height:14px;text-align:center;
+    box-shadow:0 1px 3px rgba(0,0,0,.4) !important;
   }
   .vertex-number-tooltip::before{display:none !important;}
   .drawing-vertex-number{
-    display:flex;align-items:center;justify-content:center;width:24px;height:24px;
-    background:#e5242b;color:#fff;border:2px solid #fff;font-size:12px;font-weight:800;
-    line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.45);
+    display:flex;align-items:center;justify-content:center;width:18px;height:18px;
+    background:#e5242b;color:#fff;border:2px solid #fff;font-size:10px;font-weight:800;
+    line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.4);
   }
-  .leaflet-draw-guide-dash{background-color:#e85d2f !important;width:9px !important;height:4px !important;border-radius:3px;}
+  .leaflet-draw-guide-dash{background-color:#e85d2f !important;width:4px !important;height:2px !important;border-radius:2px;}
   .live-location-dot{
     width:18px;height:18px;border-radius:50%;background:#078bc7;border:3px solid #fff;
     box-shadow:0 0 0 2px rgba(7,139,199,.35),0 2px 6px rgba(0,0,0,.35);
@@ -620,6 +620,13 @@ placeholder="90, 60
 <script>
   const STORAGE_KEY = 'survey_geo_builder_v1';
 
+  // Keep Leaflet.Draw's live segment measurements in decimal feet.
+  const originalReadableDistance = L.GeometryUtil.readableDistance;
+  L.GeometryUtil.readableDistance = function(distance, metric, feet, nauticMile, precision) {
+    if (metric === false && feet) return (distance * 3.28084).toFixed(1) + ' ft';
+    return originalReadableDistance.call(this, distance, metric, feet, nauticMile, precision);
+  };
+
   const map = L.map('map', {
     zoomControl: true,
     rotate: true,
@@ -990,7 +997,7 @@ placeholder="90, 60
         const feet = meters * 3.28084;
         const mid = L.latLng((a.lat + b.lat) / 2, (a.lng + b.lng) / 2);
         L.circleMarker(mid, { radius: 0, opacity: 0, fillOpacity: 0, interactive: false })
-          .bindTooltip(Math.round(feet) + ' ft', { permanent: true, direction: 'center', className: 'length-tooltip' })
+          .bindTooltip(feet.toFixed(1) + ' ft', { permanent: true, direction: 'center', className: 'length-tooltip' })
           .addTo(measurementLayer);
       }
     });
@@ -1088,7 +1095,7 @@ placeholder="90, 60
   function styleActiveDrawLine() {
     const handler = activeDrawHandler();
     if (handler && handler._poly && handler._poly.setStyle) {
-      handler._poly.setStyle({ color: '#e85d2f', weight: 4, dashArray: '10 8', opacity: .95 });
+      handler._poly.setStyle({ color: '#e85d2f', weight: 2.5, dashArray: '4 7', opacity: .95 });
     }
   }
   function refreshDrawingVertexNumbers(e) {
