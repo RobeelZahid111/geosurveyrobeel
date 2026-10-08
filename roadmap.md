@@ -1,0 +1,3 @@
+- [x] Apply the supplied Survey Geo logo and app icon.
+- [ ] Add welcome screens for browser and installed-app launch while preserving sign-in and access checks.
+- [ ] Verify welcome → Start Survey and logo rendering.

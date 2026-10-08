@@ -1,5 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useState } from "react";
+import { ArrowRight, LoaderCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import logo from "@/assets/survey-geo-logo.jpg.asset.json";
 import { supabase } from "@/integrations/supabase/client";
 import { evaluateAccess, type SubscriptionRow } from "@/lib/subscription";
 
@@ -26,14 +29,12 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const navigate = useNavigate();
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
+  const [starting, setStarting] = useState(false);
+  async function startSurvey() {
+    setStarting(true);
       try {
         const { data: sessionData } = await supabase.auth.getSession();
         const session = sessionData.session;
-        if (cancelled) return;
         if (!session) {
           navigate({ to: "/auth" });
           return;
@@ -43,25 +44,29 @@ function Index() {
           .select("*")
           .eq("user_id", session.user.id)
           .maybeSingle();
-        if (cancelled) return;
         if (evaluateAccess(data as SubscriptionRow | null).entitled) {
-          window.location.replace("/survey/index.html");
+          window.location.assign("/survey/index.html?start=1");
         } else {
           navigate({ to: "/subscribe" });
         }
       } catch {
-        if (!cancelled) navigate({ to: "/subscribe" });
+        navigate({ to: "/subscribe" });
+      } finally {
+        setStarting(false);
       }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [navigate]);
+  }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
-      Loading SurveyGeoBuilder…
+    <main className="survey-welcome-page">
+      <div className="survey-welcome-content">
+        <img className="survey-welcome-logo" src={logo.url} alt="Survey Geo — Precision. Geospatial. Mapping." />
+        <h1>Welcome to Survey Geo</h1>
+        <Button className="survey-start-button" size="lg" onClick={startSurvey} disabled={starting}>
+          {starting ? <LoaderCircle className="animate-spin" /> : null}
+          {starting ? "Opening survey…" : "Start Survey"}
+          {!starting ? <ArrowRight /> : null}
+        </Button>
+      </div>
     </main>
   );
 }

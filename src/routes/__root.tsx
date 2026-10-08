@@ -89,15 +89,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "Geo Survey" },
       { name: "twitter:description", content: "GeoJSON Navigator imports and displays GeoJSON files, supporting WGS84 coordinates and rich land-record schemas." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/9d183a04-01db-434b-a8d4-2ee19386f8db/id-preview-ff8bfd7d--674e26d4-3b47-4a99-89ae-fb598ad8a68f.lovable.app-1783254749617.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/9d183a04-01db-434b-a8d4-2ee19386f8db/id-preview-ff8bfd7d--674e26d4-3b47-4a99-89ae-fb598ad8a68f.lovable.app-1783254749617.png" },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/favicon.png", type: "image/png" },
     ],
   }),
   shellComponent: RootShell,
