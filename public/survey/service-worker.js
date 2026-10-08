@@ -1,8 +1,8 @@
-const CACHE_NAME = 'survey-geo-builder-v40';
+const CACHE_NAME = 'survey-geo-builder-v41';
 const SHELL_FILES = [
   './manifest.json',
-  './icon-192.png',
-  './icon-512.png'
+  './icon-192.png?v=41',
+  './icon-512.png?v=41'
 ];
 
 self.addEventListener('install', (event) => {
@@ -44,7 +44,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Shell assets: cache-first
-  if (SHELL_FILES.some((f) => url.pathname.endsWith(f.replace('./', '')))) {
+  if (SHELL_FILES.some((f) => url.pathname.endsWith(f.replace('./', '').split('?')[0]))) {
     event.respondWith(caches.match(req).then((cached) => cached || fetch(req)));
     return;
   }
