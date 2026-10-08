@@ -17,6 +17,10 @@
 <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.2/dist/leaflet-geoman.css" />
 <style>
   :root{
+    --welcome-background:#f2f7f9;
+    --welcome-foreground:#123957;
+    --welcome-primary:#237f99;
+    --welcome-on-primary:#ffffff;
     --ink:#1c2b22;
     --paper:#f6f4ec;
     --line:#2f6b3f;
@@ -30,6 +34,16 @@
   *{box-sizing:border-box;}
   html,body{margin:0;height:100%;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--paper);color:var(--ink);}
   #app{display:flex;height:100vh;width:100vw;}
+  #surveyWelcome{position:fixed;inset:0;z-index:10000;background:var(--welcome-background);color:var(--welcome-foreground);display:grid;place-items:center;padding:24px 20px;overflow:auto;}
+  .welcome-content{width:min(100%,480px);text-align:center;}
+  .welcome-logo{display:block;width:min(100%,420px);aspect-ratio:1;object-fit:contain;margin:0 auto 20px;}
+  .welcome-content h1{font-size:24px;font-weight:600;margin:0 0 28px;letter-spacing:0;}
+  #welcomeStart{min-height:48px;width:min(100%,280px);border:0;border-radius:6px;background:var(--welcome-primary);color:var(--welcome-on-primary);font:600 14px inherit;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:12px;}
+  #welcomeStart:hover{background:var(--welcome-foreground);}
+  #welcomeStart svg{width:18px;height:18px;}
+  #welcomeStart:focus-visible{outline:3px solid var(--welcome-foreground);outline-offset:4px;}
+  html.welcome-pending #app{visibility:hidden;}
+  @media(max-height:650px){.welcome-logo{width:min(100%,280px);margin-bottom:12px;}}
 
   #sidebar{
     width:320px;min-width:280px;background:var(--panel);border-right:1px solid var(--border);
@@ -349,7 +363,7 @@
 
 <script>
 /* Subscription gate: only signed-in users with an active trial or subscription may use the app. */
-(function () {
+window.startSurveyAccessCheck = function () {
   var SB_URL = 'https://dprgxkjqazuzrtjwjzer.supabase.co';
   var SB_KEY = 'sb_publishable_MlB8GalNzsjBsGN1KVKBPw_P9Bntz0s';
   var STORAGE_KEY = 'sb-dprgxkjqazuzrtjwjzer-auth-token';
@@ -390,11 +404,40 @@
   }).catch(function () {
     /* offline: allow cached session to keep working */
   });
-})();
+};
+if (new URLSearchParams(window.location.search).get('start') === '1') {
+  window.startSurveyAccessCheck();
+} else {
+  document.documentElement.classList.add('welcome-pending');
+}
 </script>
 </head>
 
 <body>
+<section id="surveyWelcome" aria-label="Welcome to Survey Geo">
+  <div class="welcome-content">
+    <img class="welcome-logo" src="/__l5e/assets-v1/79173d9d-bb17-4395-9aae-1f21b8e8b105/survey-geo-logo.jpg" alt="Survey Geo — Precision. Geospatial. Mapping.">
+    <h1>Welcome to Survey Geo</h1>
+    <button id="welcomeStart" type="button">Start Survey <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></button>
+  </div>
+</section>
+<script>
+(function () {
+  var welcome = document.getElementById('surveyWelcome');
+  var button = document.getElementById('welcomeStart');
+  if (new URLSearchParams(window.location.search).get('start') === '1') {
+    welcome.remove();
+    history.replaceState(null, '', window.location.pathname);
+  } else {
+    button.addEventListener('click', function () {
+      button.disabled = true;
+      window.startSurveyAccessCheck();
+      welcome.remove();
+      document.documentElement.classList.remove('welcome-pending');
+    });
+  }
+})();
+</script>
 <div id="app">
   <div id="sidebar">
     <div id="sidebarHandle"><div class="bar"></div></div>
