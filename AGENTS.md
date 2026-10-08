@@ -11,3 +11,4 @@
 
 - Keep map drawing annotations and live GPS tracking client-side in the survey PWA because they depend on Leaflet state and browser geolocation.
 - Keep welcome screens at both the root entry and the existing installed-app entry, and check access only after Start Survey; preserve the installed manifest start URL so existing installations keep working.
+- Derive install icons from the complete supplied logo symbol, centered within the maskable safe area, and version icon URLs when replacing them so installed clients can refresh them.
