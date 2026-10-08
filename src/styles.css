@@ -95,6 +95,10 @@
   --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.704 0.04 256.788);
+  --welcome-background: oklch(0.973 0.008 220);
+  --welcome-foreground: oklch(0.3 0.07 248);
+  --welcome-primary: oklch(0.52 0.09 220);
+  --welcome-on-primary: oklch(1 0 0);
 }
 
 .dark {
@@ -142,3 +146,19 @@
     color: var(--color-foreground);
   }
 }
+
+.survey-welcome-page {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 24px 20px;
+  background: var(--welcome-background);
+  color: var(--welcome-foreground);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+.survey-welcome-content { width: min(100%, 480px); text-align: center; }
+.survey-welcome-logo { display: block; width: min(100%, 420px); aspect-ratio: 1; object-fit: contain; margin: 0 auto 20px; }
+.survey-welcome-content h1 { font-size: 24px; font-weight: 600; margin: 0 0 28px; letter-spacing: 0; }
+.survey-start-button { min-height: 48px; width: min(100%, 280px); background: var(--welcome-primary); color: var(--welcome-on-primary); box-shadow: none; }
+.survey-start-button:hover { background: var(--welcome-foreground); }
+@media (max-height: 650px) { .survey-welcome-logo { width: min(100%, 280px); margin-bottom: 12px; } }
