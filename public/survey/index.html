@@ -529,6 +529,10 @@ if (new URLSearchParams(window.location.search).get('start') === '1') {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
           Export KML
         </button>
+        <button class="btn" id="exportKmlSepBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/><path d="M4 3h6M4 7h4M18 3h2M18 7h2"/></svg>
+          Export separate KMLs
+        </button>
 
         <button class="btn" id="importBtn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 0l-4 4m4-4l4 4M4 3h16"/></svg>
@@ -2494,6 +2498,7 @@ placeholder="90, 60
       { id: 'exportBtn', label: 'ZIP' },
       { id: 'exportPointsBtn', label: 'Files' },
       { id: 'exportKmlBtn', label: 'KML' },
+      { id: 'exportKmlSepBtn', label: 'KMLs' },
 
       { id: 'importBtn', label: 'Import' },
       { id: 'clearBtn', label: 'Clear', danger: true }
@@ -2631,6 +2636,30 @@ placeholder="90, 60
     var kml = buildKml(layers, base, sgb);
     sgb.downloadBlob(new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' }), base + '.kml');
     if (window.appToast) window.appToast(layers.length + ' feature(s) KML mein export ho gaye.', 'ok');
+  });
+
+  /* ---- 3b. Separate KML per feature — ZIP of one KML file per parcel ---- */
+  var sepBtn = document.getElementById('exportKmlSepBtn');
+  if (sepBtn) sepBtn.addEventListener('click', async function(){
+    var sgb = window.__sgb;
+    if (!sgb) return;
+    var layers = [];
+    sgb.drawnItems.eachLayer(function(l){ layers.push(l); });
+    if (!layers.length){ alert('No features to export.'); return; }
+    if (typeof JSZip === 'undefined'){ alert('ZIP library load nahi ho saki. Internet check karein.'); return; }
+    var base = sgb.sanitizeFilename(sgb.promptForFilename('survey_kmls'));
+    if (!base) return;
+    var zip = new JSZip();
+    var used = {};
+    layers.forEach(function(layer, i){
+      var idx = i + 1;
+      var name = sgb.parcelFilename(layer, idx);
+      if (used[name] != null){ used[name]++; name = name + '_' + used[name]; } else { used[name] = 1; }
+      zip.file(name + '.kml', buildKml([layer], name, sgb));
+    });
+    var blob = await zip.generateAsync({ type: 'blob' });
+    sgb.downloadBlob(blob, base + '.zip');
+    if (window.appToast) window.appToast(layers.length + ' alag KML file(s) ZIP mein export ho gaye.', 'ok');
   });
 })();
 </script>
