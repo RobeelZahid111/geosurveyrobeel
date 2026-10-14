@@ -46,7 +46,8 @@ function AdminPage() {
   const [state, setState] = useState<"loading" | "denied" | "ready">("loading");
   const [rows, setRows] = useState<AdminUserRow[]>([]);
   const [q, setQ] = useState("");
-  const [months, setMonths] = useState("1");
+  const [unit, setUnit] = useState<"months" | "days">("months");
+  const [amount, setAmount] = useState("1");
   const [busyId, setBusyId] = useState<string | null>(null);
 
   async function load() {
@@ -87,7 +88,12 @@ function AdminPage() {
   async function doGrant(id: string) {
     setBusyId(id);
     try {
-      await grant({ data: { userId: id, months: Number(months) || 1 } });
+      const n = Number(amount) || 1;
+      await grant(
+        unit === "months"
+          ? { data: { userId: id, months: n } }
+          : { data: { userId: id, days: n } },
+      );
       toast.success("Access granted");
       await load();
     } catch (e) {
@@ -157,17 +163,28 @@ function AdminPage() {
           <div className="min-w-[220px] flex-1">
             <Input placeholder="Search email or name…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
-          <div className="w-32">
+          <div className="w-28">
+            <select
+              value={unit}
+              onChange={(e) => setUnit(e.target.value as "months" | "days")}
+              aria-label="Access unit"
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm shadow-xs focus-visible:outline-none"
+            >
+              <option value="months">Months</option>
+              <option value="days">Days</option>
+            </select>
+          </div>
+          <div className="w-24">
             <Input
               type="number"
               min={1}
-              max={120}
-              value={months}
-              onChange={(e) => setMonths(e.target.value)}
-              aria-label="Months of free access"
+              max={unit === "months" ? 120 : 3650}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              aria-label={`Number of ${unit} of free access`}
             />
           </div>
-          <span className="pb-2 text-xs text-muted-foreground">months granted per click</span>
+          <span className="pb-2 text-xs text-muted-foreground">{unit} granted per click</span>
         </div>
 
         <div className="space-y-3">
