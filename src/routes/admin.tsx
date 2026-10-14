@@ -46,7 +46,8 @@ function AdminPage() {
   const [state, setState] = useState<"loading" | "denied" | "ready">("loading");
   const [rows, setRows] = useState<AdminUserRow[]>([]);
   const [q, setQ] = useState("");
-  const [months, setMonths] = useState("1");
+  const [unit, setUnit] = useState<"months" | "days">("months");
+  const [amount, setAmount] = useState("1");
   const [busyId, setBusyId] = useState<string | null>(null);
 
   async function load() {
@@ -87,7 +88,12 @@ function AdminPage() {
   async function doGrant(id: string) {
     setBusyId(id);
     try {
-      await grant({ data: { userId: id, months: Number(months) || 1 } });
+      const n = Number(amount) || 1;
+      await grant(
+        unit === "months"
+          ? { data: { userId: id, months: n } }
+          : { data: { userId: id, days: n } },
+      );
       toast.success("Access granted");
       await load();
     } catch (e) {
