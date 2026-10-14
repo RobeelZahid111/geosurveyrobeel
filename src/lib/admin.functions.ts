@@ -91,20 +91,30 @@ export const listUsers = createServerFn({ method: "GET" })
 
 export const grantAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { userId: string; months: number }) => {
+  .inputValidator((input: { userId: string; months?: number; days?: number }) => {
     if (!input?.userId) throw new Error("userId required");
     const months = Number(input.months);
-    if (!Number.isFinite(months) || months < 1 || months > 120) {
-      throw new Error("months must be between 1 and 120");
-    }
-    return { userId: input.userId, months };
+    const days = Number(input.days);
+    const hasMonths = Number.isFinite(months) && months >= 1 && months <= 120;
+    const hasDays = Number.isFinite(days) && days >= 1 && days <= 3650;
+    if (hasMonths && hasDays) throw new Error("Provide either months or days, not both");
+    if (!hasMonths && !hasDays) throw new Error("Provide months (1–120) or days (1–3650)");
+    return {
+      userId: input.userId,
+      months: hasMonths ? months : undefined,
+      days: hasDays ? days : undefined,
+    };
   })
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const end = new Date();
-    end.setMonth(end.getMonth() + data.months);
+    if (typeof data.months === "number") {
+      end.setMonth(end.getMonth() + data.months);
+    } else {
+      end.setDate(end.getDate() + (data.days ?? 0));
+    }
 
     const { error } = await supabaseAdmin.from("subscriptions").upsert(
       {
