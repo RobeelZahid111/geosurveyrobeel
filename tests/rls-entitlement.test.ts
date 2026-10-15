@@ -31,7 +31,7 @@ async function probe(c: Case | "anon") {
       const uid = crypto.randomUUID();
       // fixtures (as privileged role)
       await tx`insert into public.mouza_layers (tehsil, qh, mouza, mouza_id, file_path)
-               values ('TestTehsil','TestQH','TestMouza','TEST-${uid}', ${"test/" + uid + ".geojson.gz"})`;
+               values ('TestTehsil','TestQH','TestMouza', ${"TEST-" + uid}, ${"test/" + uid + ".geojson.gz"})`;
       await tx`insert into storage.objects (bucket_id, name) values ('khasra-data', ${"test/" + uid + ".geojson.gz"})`;
       if (c !== "anon") {
         await tx`insert into auth.users (id, email, aud, role) values (${uid}, ${uid + "@rls.test"}, 'authenticated', 'authenticated')`;
