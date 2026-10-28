@@ -49,6 +49,13 @@
     width:320px;min-width:280px;background:var(--panel);border-right:1px solid var(--border);
     display:flex;flex-direction:column;overflow:hidden;
   }
+  /* Desktop: whole sidebar scrolls, header stays pinned */
+  @media (min-width:769px){
+    #sidebar{ overflow-y:auto; scrollbar-width:thin; }
+    #sidebar > *{ flex-shrink:0; }
+    #sidebar header{ position:sticky; top:0; z-index:5; }
+    #featureList{ flex:none; overflow:visible; padding-bottom:16px; }
+  }
   #sidebar header{
     padding:16px 18px 12px;border-bottom:1px solid var(--border);
   }
